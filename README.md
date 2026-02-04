@@ -310,6 +310,60 @@ const response = await fetch(API_URL, {
 });
 ```
 
+### Google Antigravity
+
+Antigravity uses a skills/rules system. Set up the integration:
+
+1. Create the hook script at `~/.antigravity/hooks/post-activity.sh`:
+
+```bash
+#!/bin/bash
+AGENT_TOKEN="${AGENT_ACTIVITY_TOKEN:-your-token-here}"
+API_URL="https://us-central1-YOUR_PROJECT.cloudfunctions.net/postUpdate"
+
+PROJECT_DIR="${1:-$(pwd)}"
+GIT_ROOT=$(git -C "$PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null)
+PROJECT_DIR="${GIT_ROOT:-$PROJECT_DIR}"
+PROJECT_NAME=$(basename "$PROJECT_DIR")
+WORKSTREAM=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+SUMMARY="${2:-Antigravity Session}"
+PRIORITY="${3:-low}"
+MODEL="${4:-gemini-2.0}"
+
+CLEAN_SUMMARY=$(echo "$SUMMARY" | sed 's/"/\\"/g' | tr -d '\n')
+
+curl -s -X POST "$API_URL" \
+  -H "Content-Type: application/json" \
+  -H "X-Agent-Token: $AGENT_TOKEN" \
+  -d "{
+    \"project\": \"$PROJECT_NAME\",
+    \"workstream\": \"$WORKSTREAM\",
+    \"summary\": \"$CLEAN_SUMMARY\",
+    \"tool\": \"antigravity\",
+    \"model\": \"$MODEL\",
+    \"priority\": \"$PRIORITY\"
+  }"
+```
+
+2. Make it executable: `chmod +x ~/.antigravity/hooks/post-activity.sh`
+
+3. Create a global rule at `~/.agent/rules/activity-bus.md`:
+
+```markdown
+# Activity Bus Integration
+
+After completing coding tasks, post an update:
+
+\`\`\`bash
+~/.antigravity/hooks/post-activity.sh "$(pwd)" "<summary>" "<priority>" "gemini-2.0"
+\`\`\`
+
+Summary should describe WHAT was done and WHY.
+Priority: high/medium/low based on significance.
+```
+
+4. Tell Antigravity to follow this rule in your conversations.
+
 ### Aider
 
 Add to your `.aider.conf.yml` or wrap aider with a script:
@@ -355,6 +409,51 @@ The quality of your dashboard depends on summary quality:
 | **Fix-first** | "Fixed pagination bug - off-by-one error in offset calculation" |
 
 Include the **why** (user's goal) and **what** (changes made) in each summary.
+
+### Adding New Tools
+
+When integrating a new AI tool:
+
+1. **Check for hooks/callbacks**: Most tools have a way to run code after responses (Claude Code has Stop hooks, VS Code has extensions, etc.)
+
+2. **Create a wrapper script** if no hooks exist:
+   ```bash
+   #!/bin/bash
+   # Generic post-activity script
+   # Usage: ./post-activity.sh <project_dir> <summary> <priority> <model>
+
+   API_URL="https://us-central1-YOUR_PROJECT.cloudfunctions.net/postUpdate"
+   AGENT_TOKEN="${AGENT_ACTIVITY_TOKEN}"
+
+   PROJECT_DIR="${1:-$(pwd)}"
+   PROJECT_NAME=$(basename "$(git -C "$PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null || echo "$PROJECT_DIR")")
+   WORKSTREAM=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+   SUMMARY="${2:-Session activity}"
+   PRIORITY="${3:-medium}"
+   MODEL="${4:-unknown}"
+   TOOL="${5:-custom}"
+
+   curl -s -X POST "$API_URL" \
+     -H "Content-Type: application/json" \
+     -H "X-Agent-Token: $AGENT_TOKEN" \
+     -d "{
+       \"project\": \"$PROJECT_NAME\",
+       \"workstream\": \"$WORKSTREAM\",
+       \"summary\": \"$(echo "$SUMMARY" | sed 's/"/\\"/g')\",
+       \"tool\": \"$TOOL\",
+       \"model\": \"$MODEL\",
+       \"priority\": \"$PRIORITY\"
+     }"
+   ```
+
+3. **Configure the tool** to call your script after each session/response
+
+4. **Set the environment variable**: `export AGENT_ACTIVITY_TOKEN="your-token"`
+
+5. **Test manually** before relying on automation:
+   ```bash
+   ./post-activity.sh "." "Test integration" "low" "model-name" "tool-name"
+   ```
 
 ## License
 
