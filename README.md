@@ -17,12 +17,225 @@ When you're running agentic development across multiple projects and tools simul
 
 ## Tech Stack
 
-- Firebase (Auth, Firestore, Hosting)
-- Web-based dashboard (desktop + mobile)
+- React 19 + TypeScript + Vite
+- Firebase (Auth, Firestore, Cloud Functions, Hosting)
+- TailwindCSS 4
 
-## Status
+## Quick Start
 
-**Draft** - See [PRD.md](./PRD.md) for full product requirements.
+### Prerequisites
+
+- Node.js 18+
+- Firebase CLI (`npm install -g firebase-tools`)
+
+### Setup
+
+1. Clone the repo and install dependencies:
+   ```bash
+   npm install
+   cd functions && npm install && cd ..
+   ```
+
+2. Create `.env.local` with your Firebase config:
+   ```
+   VITE_FIREBASE_API_KEY=your-api-key
+   VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your-project-id
+   VITE_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+   VITE_FIREBASE_APP_ID=your-app-id
+   VITE_USE_EMULATORS=false
+   ```
+
+3. Run locally:
+   ```bash
+   npm run dev
+   ```
+
+### Deploy
+
+```bash
+firebase deploy
+```
+
+## Agent API
+
+Post updates from your AI agents using the REST endpoint.
+
+### Endpoint
+
+```
+POST https://us-central1-YOUR_PROJECT.cloudfunctions.net/postUpdate
+```
+
+### Headers
+
+| Header | Description |
+|--------|-------------|
+| `Content-Type` | `application/json` |
+| `X-Agent-Token` | Your agent token (create in dashboard) |
+
+### Request Body
+
+```json
+{
+  "project": "my-project",
+  "workstream": "feature-auth",
+  "summary": "Implemented login flow with Google OAuth",
+  "tool": "claude-code",
+  "model": "claude-sonnet-4",
+  "priority": "medium"
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `project` | Yes | Project name (auto-created if new) |
+| `workstream` | Yes | Branch, feature, or task name |
+| `summary` | Yes | What the agent did |
+| `tool` | Yes | Tool name (claude-code, cursor, etc.) |
+| `model` | Yes | Model used (claude-sonnet-4, gpt-4, etc.) |
+| `modelVersion` | No | Specific model version |
+| `priority` | No | `high`, `medium`, `low`, or `debug` (default: `medium`) |
+
+### Example
+
+```bash
+curl -X POST https://us-central1-town-center-agent.cloudfunctions.net/postUpdate \
+  -H "Content-Type: application/json" \
+  -H "X-Agent-Token: YOUR_TOKEN" \
+  -d '{
+    "project": "my-app",
+    "workstream": "feature-auth",
+    "summary": "Added password reset functionality",
+    "tool": "claude-code",
+    "model": "claude-sonnet-4"
+  }'
+```
+
+### Response
+
+Success:
+```json
+{
+  "success": true,
+  "data": {
+    "updateId": "abc123",
+    "timestamp": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+Error:
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_TOKEN",
+    "message": "Token is invalid or has been revoked"
+  }
+}
+```
+
+## Claude Code Integration
+
+Automatically post updates from Claude Code using hooks.
+
+### Setup
+
+1. Create the hook script at `~/.claude/hooks/post-activity.sh`:
+
+```bash
+#!/bin/bash
+# Post Claude Code activity to Agent Activity Bus
+
+AGENT_TOKEN="${AGENT_ACTIVITY_TOKEN:-}"
+API_URL="https://us-central1-town-center-agent.cloudfunctions.net/postUpdate"
+
+if [ -z "$AGENT_TOKEN" ]; then
+  exit 0
+fi
+
+INPUT=$(cat)
+
+# Prevent infinite loops
+STOP_HOOK_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null)
+if [ "$STOP_HOOK_ACTIVE" = "true" ]; then
+  exit 0
+fi
+
+TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
+CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+PROJECT_DIR="${CWD:-$(pwd)}"
+PROJECT_NAME=$(basename "$PROJECT_DIR")
+WORKSTREAM=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+
+SUMMARY="Session activity"
+PRIORITY="low"
+TOOL_COUNT=0
+
+if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
+  TOOL_COUNT=$(tail -50 "$TRANSCRIPT_PATH" | grep -c '"type":"tool_use"' 2>/dev/null || echo "0")
+  FILES_MODIFIED=$(tail -100 "$TRANSCRIPT_PATH" | \
+    grep -o '"file_path":"[^"]*"' | \
+    sed 's/"file_path":"//g; s/"//g' | \
+    xargs -I{} basename {} 2>/dev/null | \
+    sort -u | head -5 | tr '\n' ', ' | sed 's/,$//')
+
+  if [ -n "$FILES_MODIFIED" ]; then
+    SUMMARY="Modified: $FILES_MODIFIED"
+  fi
+fi
+
+if [ "$TOOL_COUNT" -gt 5 ] 2>/dev/null; then PRIORITY="medium"; fi
+if [ "$TOOL_COUNT" -gt 15 ] 2>/dev/null; then PRIORITY="high"; fi
+if [ "$TOOL_COUNT" -lt 1 ] 2>/dev/null; then exit 0; fi
+
+curl -s -X POST "$API_URL" \
+  -H "Content-Type: application/json" \
+  -H "X-Agent-Token: $AGENT_TOKEN" \
+  -d "{
+    \"project\": \"$PROJECT_NAME\",
+    \"workstream\": \"$WORKSTREAM\",
+    \"summary\": \"$SUMMARY\",
+    \"tool\": \"claude-code\",
+    \"model\": \"claude-sonnet-4\",
+    \"priority\": \"$PRIORITY\"
+  }" > /dev/null 2>&1 &
+
+exit 0
+```
+
+2. Make it executable:
+```bash
+chmod +x ~/.claude/hooks/post-activity.sh
+```
+
+3. Add to `~/.claude/settings.json`:
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/post-activity.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+4. Set your token in `~/.bashrc` or `~/.zshrc`:
+```bash
+export AGENT_ACTIVITY_TOKEN="your-token-here"
+```
+
+The hook fires after each Claude response, posting activity summaries including files modified and priority based on activity level.
 
 ## License
 

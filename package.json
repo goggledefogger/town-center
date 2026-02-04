@@ -1,0 +1,53 @@
+{
+  "name": "town-center",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A personal message bus and web dashboard that tracks what your AI development agents are doing across all the tools you use.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "emulators": "firebase emulators:start",
+    "emulators:export": "firebase emulators:export ./emulator-data",
+    "emulators:import": "firebase emulators:start --import ./emulator-data",
+    "build:functions": "npm --prefix functions run build",
+    "deploy": "npm run build && firebase deploy",
+    "deploy:hosting": "npm run build && firebase deploy --only hosting",
+    "deploy:functions": "npm run build:functions && firebase deploy --only functions"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/goggledefogger/town-center.git"
+  },
+  "keywords": [
+    "agent",
+    "activity",
+    "dashboard",
+    "firebase"
+  ],
+  "author": "Roy",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/goggledefogger/town-center/issues"
+  },
+  "homepage": "https://github.com/goggledefogger/town-center#readme",
+  "dependencies": {
+    "firebase": "^12.8.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.13.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/react": "^19.2.10",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.3",
+    "autoprefixer": "^10.4.24",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  }
+}
