@@ -82,6 +82,8 @@ users/{uid}/
 - [x] AI summary generation per branch
 - [x] AI-generated action tags (needs_attention, question_pending, review_requested, etc.)
 - [x] Branch-level summaries with action indicators
+- [x] Auto-generate stale summaries on page load (first 3 projects)
+- [x] Bullet-point formatted AI summaries
 
 ### In Progress
 - [ ] Action tag click-through actions
@@ -132,6 +134,8 @@ gh api repos/OWNER/REPO/hooks --method POST \
 
 ## Recent Changes
 
+- **2026-02-04**: Auto-generate stale summaries on page load for first 3 projects
+- **2026-02-04**: AI summaries now use bullet-point format for better readability
 - **2026-02-04**: Added AI-generated action tags for at-a-glance workstream triage
 - **2026-02-04**: Branch summaries now show action indicators (needs_attention, question_pending, etc.)
 - **2026-02-04**: Improved status color scheme (blue=active, slate=paused, emerald=completed)

@@ -32,4 +32,5 @@ export type Workstream = {
   lastActivityAt: Timestamp
   aiSummary?: string
   actionTag?: ActionTag
+  summaryGeneratedAt?: Timestamp
 }
