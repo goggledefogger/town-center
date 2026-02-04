@@ -58,6 +58,24 @@ When you're running agentic development across multiple projects and tools simul
 firebase deploy
 ```
 
+## Data Model
+
+The activity bus organizes updates hierarchically:
+
+```
+User
+└── Projects (auto-created from update payloads)
+    └── Workstreams (branches, features, or task threads)
+        └── Updates (individual agent activity entries)
+```
+
+**Key concepts:**
+- **Project**: Usually maps to a repository or codebase (e.g., `my-app`, `backend-api`)
+- **Workstream**: A thread of related work - typically a git branch, feature name, or task (e.g., `feature-auth`, `fix-login-bug`, `main`)
+- **Update**: A single activity entry describing what was done
+
+Projects and workstreams are auto-created when updates reference them.
+
 ## Agent API
 
 Post updates from your AI agents using the REST endpoint.
@@ -81,7 +99,7 @@ POST https://us-central1-YOUR_PROJECT.cloudfunctions.net/postUpdate
 {
   "project": "my-project",
   "workstream": "feature-auth",
-  "summary": "Implemented login flow with Google OAuth",
+  "summary": "Implemented login flow with Google OAuth - added LoginPage component, configured Firebase Auth provider, and set up protected routes",
   "tool": "claude-code",
   "model": "claude-sonnet-4",
   "priority": "medium"
@@ -90,13 +108,41 @@ POST https://us-central1-YOUR_PROJECT.cloudfunctions.net/postUpdate
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `project` | Yes | Project name (auto-created if new) |
+| `project` | Yes | Project/repo name (auto-created if new) |
 | `workstream` | Yes | Branch, feature, or task name |
-| `summary` | Yes | What the agent did |
-| `tool` | Yes | Tool name (claude-code, cursor, etc.) |
+| `summary` | Yes | **Descriptive summary of what was done and why** |
+| `tool` | Yes | Tool name (see below) |
 | `model` | Yes | Model used (claude-sonnet-4, gpt-4, etc.) |
 | `modelVersion` | No | Specific model version |
 | `priority` | No | `high`, `medium`, `low`, or `debug` (default: `medium`) |
+
+### Writing Good Summaries
+
+The `summary` field is the most important - it should answer "what was accomplished and why?"
+
+**Good summaries:**
+- "Implemented user authentication with Google OAuth - added login page, auth context, and route guards"
+- "Fixed pagination bug in user list - issue was off-by-one error in offset calculation"
+- "Refactored API client to use async/await - improved error handling and reduced callback nesting"
+
+**Bad summaries:**
+- "Used: Bash, Edit, Read, Write" (just lists tools, not what was done)
+- "Modified files" (no context)
+- "Session activity" (meaningless)
+
+### Tool Identifiers
+
+Use consistent tool names for filtering and analytics:
+
+| Tool | Identifier |
+|------|------------|
+| Claude Code | `claude-code` |
+| Cursor | `cursor` |
+| GitHub Copilot | `copilot` |
+| Windsurf | `windsurf` |
+| Aider | `aider` |
+| Continue | `continue` |
+| Custom/Other | Use descriptive lowercase name |
 
 ### Example
 
@@ -235,7 +281,80 @@ chmod +x ~/.claude/hooks/post-activity.sh
 export AGENT_ACTIVITY_TOKEN="your-token-here"
 ```
 
-The hook fires after each Claude response, posting activity summaries including files modified and priority based on activity level.
+The hook fires after each Claude response, extracting the user's task/request from the transcript to create meaningful summaries.
+
+## Integrating Other AI Tools
+
+The API is tool-agnostic. Here's how to integrate other AI coding assistants:
+
+### Cursor
+
+Add a post-session script or use Cursor's extension API to POST updates:
+
+```javascript
+// Example: Post from a Cursor extension
+const response = await fetch(API_URL, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Agent-Token': process.env.AGENT_ACTIVITY_TOKEN
+  },
+  body: JSON.stringify({
+    project: workspaceName,
+    workstream: gitBranch,
+    summary: `${userRequest} - ${filesChanged.join(', ')}`,
+    tool: 'cursor',
+    model: 'gpt-4',
+    priority: 'medium'
+  })
+});
+```
+
+### Aider
+
+Add to your `.aider.conf.yml` or wrap aider with a script:
+
+```bash
+#!/bin/bash
+# aider-wrapper.sh - Run aider and post activity
+aider "$@"
+EXIT_CODE=$?
+
+# Post summary after aider session
+if [ $EXIT_CODE -eq 0 ]; then
+  curl -s -X POST "$API_URL" \
+    -H "Content-Type: application/json" \
+    -H "X-Agent-Token: $AGENT_ACTIVITY_TOKEN" \
+    -d "{
+      \"project\": \"$(basename $(pwd))\",
+      \"workstream\": \"$(git branch --show-current)\",
+      \"summary\": \"Aider session completed\",
+      \"tool\": \"aider\",
+      \"model\": \"claude-sonnet-4\"
+    }"
+fi
+```
+
+### Custom Integration Pattern
+
+For any tool, the integration pattern is:
+
+1. **Capture context**: Project name (usually directory), workstream (usually git branch)
+2. **Extract the task**: What did the user ask for? This becomes the summary.
+3. **Note what changed**: Files modified, features added, bugs fixed
+4. **POST to the API**: Send structured update with meaningful summary
+
+### Summary Best Practices
+
+The quality of your dashboard depends on summary quality:
+
+| Approach | Example |
+|----------|---------|
+| **Task-first** | "Add user authentication - implemented Google OAuth with Firebase" |
+| **Change-first** | "Refactored API client to use async/await for better error handling" |
+| **Fix-first** | "Fixed pagination bug - off-by-one error in offset calculation" |
+
+Include the **why** (user's goal) and **what** (changes made) in each summary.
 
 ## License
 
