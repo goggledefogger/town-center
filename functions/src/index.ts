@@ -39,31 +39,30 @@ async function validateToken(token: string): Promise<{ valid: boolean; userId?: 
     return { valid: false }
   }
 
-  // Search all users for this token
-  const usersSnapshot = await db.collection('users').get()
+  // Use collection group query to search all agentTokens subcollections
+  const tokensSnapshot = await db.collectionGroup('agentTokens')
+    .where('token', '==', token)
+    .where('isRevoked', '==', false)
+    .limit(1)
+    .get()
 
-  for (const userDoc of usersSnapshot.docs) {
-    const tokensSnapshot = await userDoc.ref
-      .collection('agentTokens')
-      .where('token', '==', token)
-      .where('isRevoked', '==', false)
-      .limit(1)
-      .get()
+  if (!tokensSnapshot.empty) {
+    const tokenDoc = tokensSnapshot.docs[0]
+    const tokenData = tokenDoc.data()
 
-    if (!tokensSnapshot.empty) {
-      const tokenDoc = tokensSnapshot.docs[0]
-      const tokenData = tokenDoc.data()
+    // Extract userId from the document path: users/{userId}/agentTokens/{tokenId}
+    const pathParts = tokenDoc.ref.path.split('/')
+    const userId = pathParts[1] // users/{userId}/agentTokens/{tokenId}
 
-      // Update last used timestamp
-      await tokenDoc.ref.update({
-        lastUsedAt: admin.firestore.FieldValue.serverTimestamp()
-      })
+    // Update last used timestamp
+    await tokenDoc.ref.update({
+      lastUsedAt: admin.firestore.FieldValue.serverTimestamp()
+    })
 
-      return {
-        valid: true,
-        userId: userDoc.id,
-        projectScope: tokenData.projectId || undefined
-      }
+    return {
+      valid: true,
+      userId,
+      projectScope: tokenData.projectId || undefined
     }
   }
 
