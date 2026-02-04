@@ -6,8 +6,7 @@ import {
   orderBy,
   onSnapshot,
   limit,
-  collectionGroup,
-  where
+  getDocs
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -22,7 +21,6 @@ interface ProjectWithActivity extends Project {
 export function ProjectsPage() {
   const { user } = useAuth()
   const [projects, setProjects] = useState<ProjectWithActivity[]>([])
-  const [recentUpdates, setRecentUpdates] = useState<(Update & { projectName: string; workstreamName: string })[]>([])
   const [loading, setLoading] = useState(true)
 
   // Fetch projects
@@ -40,12 +38,14 @@ export function ProjectsPage() {
 
         // Get workstream count and recent updates for this project
         const workstreamsRef = collection(docSnap.ref, 'workstreams')
-        const workstreamsSnap = await workstreamsRef.orderBy('lastActivityAt', 'desc').limit(5).get()
+        const workstreamsQuery = query(workstreamsRef, orderBy('lastActivityAt', 'desc'), limit(5))
+        const workstreamsSnap = await getDocs(workstreamsQuery)
 
         const recentUpdates: Update[] = []
         for (const wsDoc of workstreamsSnap.docs) {
           const updatesRef = collection(wsDoc.ref, 'updates')
-          const updatesSnap = await updatesRef.orderBy('timestamp', 'desc').limit(2).get()
+          const updatesQuery = query(updatesRef, orderBy('timestamp', 'desc'), limit(2))
+          const updatesSnap = await getDocs(updatesQuery)
           updatesSnap.docs.forEach(uDoc => {
             recentUpdates.push({ id: uDoc.id, ...uDoc.data() } as Update)
           })
