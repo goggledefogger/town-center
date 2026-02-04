@@ -76,6 +76,11 @@ User
 
 Projects and workstreams are auto-created when updates reference them.
 
+**Multi-tool consolidation**: Updates from different tools (Claude Code, Antigravity, Cursor, etc.) posting to the same `project` + `workstream` will appear together in the same feed. This means:
+- Working on `my-app` branch `feature-auth` with Claude Code, then switching to Antigravity, will show all updates in one timeline
+- The `tool` field tracks which agent made each update
+- Use consistent project/workstream naming across tools (git repo name + branch works well)
+
 ## Agent API
 
 Post updates from your AI agents using the REST endpoint.

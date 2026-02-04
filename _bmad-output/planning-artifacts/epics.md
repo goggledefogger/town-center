@@ -10,10 +10,14 @@ date: '2026-02-03'
 implementationStatus:
   epic1: complete
   epic2: partial  # Stories 2.1-2.3 done, 2.4 (onboarding wizard) pending
-  epic3: partial  # Stories 3.1-3.4 done, 3.5 (animations) pending
-  epic4: not-started
+  epic3: complete # All stories done - projects, workstreams, updates feed with real-time sync
+  epic4: partial  # Pause toggle done, unread/priority badges done, dormancy pending
   epic5: not-started
 lastImplementationUpdate: '2026-02-04'
+integrations:
+  - claude-code: hooks/Stop event
+  - antigravity: hooks + skills + rules
+  - generic: wrapper script pattern documented
 ---
 
 # town-center - Epic Breakdown
