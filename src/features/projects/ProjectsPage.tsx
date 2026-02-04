@@ -1,0 +1,126 @@
+import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot
+} from 'firebase/firestore'
+import { db } from '../../lib/firebase'
+import { useAuth } from '../../contexts/AuthContext'
+import { Project } from '../../types'
+import { Spinner } from '../../components/Spinner'
+
+export function ProjectsPage() {
+  const { user } = useAuth()
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user) return
+
+    const projectsRef = collection(db, 'users', user.uid, 'projects')
+    const q = query(projectsRef, orderBy('lastActivityAt', 'desc'))
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const projectList: Project[] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Project))
+      setProjects(projectList)
+      setLoading(false)
+    })
+
+    return () => unsubscribe()
+  }, [user])
+
+  const formatRelativeTime = (timestamp: any) => {
+    if (!timestamp) return ''
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return 'just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    return date.toLocaleDateString()
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Spinner size="lg" />
+      </div>
+    )
+  }
+
+  if (projects.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <svg className="w-16 h-16 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+        </svg>
+        <h2 className="mt-4 text-xl font-medium text-gray-900 dark:text-white">
+          No projects yet
+        </h2>
+        <p className="mt-2 text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+          Projects will appear here automatically when your AI agents start posting updates.
+        </p>
+        <Link
+          to="/tokens"
+          className="inline-block mt-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Create an Agent Token
+        </Link>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          Projects
+        </h1>
+        <p className="mt-1 text-gray-600 dark:text-gray-400">
+          Activity from your AI development agents
+        </p>
+      </div>
+
+      <div className="grid gap-4">
+        {projects.map((project) => (
+          <Link
+            key={project.id}
+            to={`/projects/${project.id}`}
+            className="block bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow p-4"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-white">
+                    {project.name}
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Last activity: {formatRelativeTime(project.lastActivityAt)}
+                  </p>
+                </div>
+              </div>
+              <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}
