@@ -3,6 +3,7 @@
 **Status:** Draft
 **Owner:** User
 **Last Updated:** 2026-02-03
+**BMAD Version:** 6.0
 
 ---
 
@@ -129,6 +130,72 @@ A key design principle is that the system stays useful as the tooling landscape 
 **Multi-tool, multi-project workday.** During the day, you're working in Claude Code on one project, Antigravity on another, and have a third project open in Codex. Each agent posts brief updates as it works. You don't look at the dashboard during the day — it's just accumulating context for later. When you do check in, the feed is chronological within each workstream, and you can see the full arc of what happened.
 
 **New project setup.** You start a new side project. You open the dashboard, run through the onboarding wizard, name the project, and get back a prompt snippet and an agent token. You paste the snippet into your IDE's agent configuration, and the agent starts posting updates on its next action.
+
+---
+
+## Functional Requirements
+
+### Dashboard & Feed
+
+**FR-001:** User can view an activity feed displaying updates organized by project and workstream, with each update showing project name, workstream, tool, model, timestamp, and summary.
+
+**FR-002:** User can browse the feed at three levels: all projects, a single project's workstreams, or a single workstream's chronological updates.
+
+**FR-003:** User can see unread indicators (count or highlight) on projects and workstreams with unseen agent updates.
+
+**FR-004:** User can identify work awaiting follow-up through visual signals distinguishing "agent waiting for response" from "work in progress."
+
+### Navigation & Context
+
+**FR-005:** User can access a jump-back path (deep link or copyable command) to reopen the relevant project, branch, or tool context from any update.
+
+**FR-006:** User can view reminders for dormant work, surfacing projects and workstreams untouched for a configurable period (default: 5 days).
+
+### Agent Management
+
+**FR-007:** User can onboard new projects via a setup wizard that generates prompt snippets and agent credentials in under 2 minutes.
+
+**FR-008:** User can generate, rotate, and revoke agent authentication tokens, with each token labeled and scoped to a user (optionally to a project).
+
+### Search & Filter
+
+**FR-009:** User can search and filter updates using a browser-based search box that queries locally loaded data.
+
+---
+
+## Non-Functional Requirements
+
+### Performance
+
+**NFR-001:** Dashboard loads and displays actionable information within 30 seconds of opening, measured from page load to user identifying next task.
+
+**NFR-002:** Dashboard displays at least 5 active projects simultaneously on initial load.
+
+**NFR-003:** Each project surfaces at least 2 highlighted workstreams when workstreams exist.
+
+### Usability
+
+**NFR-004:** Priority levels (high/medium/low/debug) are visually distinguishable without reading text, via badges, color coding, or spatial grouping.
+
+**NFR-005:** On mobile viewports, user can distinguish IDE-required work from mobile-friendly work at a glance.
+
+**NFR-006:** Dashboard is fully functional on desktop and mobile viewports with responsive layout.
+
+### Security
+
+**NFR-007:** Authentication restricts all data access to a single authenticated user via security rules.
+
+**NFR-008:** No secrets, API keys, or environment variables are exposed in client-side code or network responses.
+
+**NFR-009:** Agent updates are validated to exclude passwords, API keys, and PII before storage, enforced via prompt templates with client-side redaction as backup.
+
+### Deployment
+
+**NFR-010:** Application runs fully functional on localhost for local development.
+
+**NFR-011:** Application is accessible across a home network when running locally.
+
+**NFR-012:** Application optionally deploys to cloud hosting with equivalent security controls.
 
 ---
 
