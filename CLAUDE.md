@@ -58,7 +58,7 @@ users/{uid}/
 ├── projects/{pid}/
 │   ├── name, createdAt, lastActivityAt
 │   └── workstreams/{wid}/
-│       ├── name, status, lastActivityAt
+│       ├── name, status, lastActivityAt, aiSummary, actionTag
 │       └── updates/{uid}/
 │           └── summary, tool, model, priority, timestamp, isRead
 ├── agentTokens/{tid}/
@@ -79,10 +79,12 @@ users/{uid}/
 - [x] Global pause toggle
 - [x] AI provider settings (multi-provider)
 - [x] Project detail page with status card
+- [x] AI summary generation per branch
+- [x] AI-generated action tags (needs_attention, question_pending, review_requested, etc.)
+- [x] Branch-level summaries with action indicators
 
 ### In Progress
-- [ ] AI summary generation button on project page
-- [ ] Branch-level summaries (grouping commits)
+- [ ] Action tag click-through actions
 
 ### Pending
 - [ ] Onboarding wizard (Epic 2.4)
@@ -130,7 +132,9 @@ gh api repos/OWNER/REPO/hooks --method POST \
 
 ## Recent Changes
 
+- **2026-02-04**: Added AI-generated action tags for at-a-glance workstream triage
+- **2026-02-04**: Branch summaries now show action indicators (needs_attention, question_pending, etc.)
+- **2026-02-04**: Improved status color scheme (blue=active, slate=paused, emerald=completed)
 - **2026-02-04**: Replaced tool-specific hooks with GitHub webhook integration
 - **2026-02-04**: Added multi-provider AI summarization (Anthropic/OpenAI/Google)
 - **2026-02-04**: Users now configure their own API keys in Settings
-- **2026-02-04**: Simplified README to GitHub-only approach

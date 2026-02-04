@@ -114,13 +114,21 @@ async function getUserAISettings(userId: string): Promise<UserAISettings> {
   return {}
 }
 
+// Action tag types for AI-generated indicators
+type ActionTag = 'needs_attention' | 'question_pending' | 'review_requested' | 'decision_needed' | 'ready_to_merge' | 'blocked' | 'in_progress' | null
+
+interface AISummaryResponse {
+  summary: string
+  actionTag: ActionTag
+}
+
 // Generate summary using the user's configured AI provider
 async function generateAISummary(
   settings: UserAISettings,
   projectName: string,
   commitsContext: string,
   isWorkstream: boolean
-): Promise<string> {
+): Promise<AISummaryResponse> {
   const prompt = `You are summarizing recent development activity for a project dashboard. Be concise and helpful.
 
 Project: ${projectName}
@@ -128,42 +136,77 @@ ${isWorkstream ? 'Branch activity:' : 'Recent activity across all branches:'}
 
 ${commitsContext}
 
-Write a 2-3 sentence summary of what's been happening on this project. Focus on features added, bugs fixed, or progress made. Use present perfect tense ("Added...", "Fixed...", "Implemented..."). Be specific but concise.`
+Respond with JSON only, no other text:
+{
+  "summary": "2-3 sentence summary of what's been happening. Focus on features, fixes, or progress. Use present perfect tense.",
+  "actionTag": "one of: needs_attention, question_pending, review_requested, decision_needed, ready_to_merge, blocked, in_progress, or null"
+}
+
+Action tag guidelines:
+- needs_attention: Something requires user action or review
+- question_pending: A commit message asked a question or needs clarification
+- review_requested: PR or code explicitly needs review
+- decision_needed: Needs a yes/no or choice from user
+- ready_to_merge: Work appears complete and ready to merge
+- blocked: Waiting on external dependency or issue
+- in_progress: Actively being worked on, no special attention needed
+- null: No clear indicator or general maintenance work`
 
   const provider = settings.aiProvider || 'anthropic'
+
+  const parseResponse = (text: string): AISummaryResponse => {
+    try {
+      // Try to extract JSON from the response
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0])
+        return {
+          summary: parsed.summary || 'Unable to generate summary.',
+          actionTag: parsed.actionTag || null
+        }
+      }
+    } catch {
+      // If JSON parsing fails, use the raw text as summary
+      return { summary: text, actionTag: null }
+    }
+    return { summary: text, actionTag: null }
+  }
 
   try {
     if (provider === 'anthropic' && settings.anthropicKey) {
       const client = new Anthropic({ apiKey: settings.anthropicKey })
       const message = await client.messages.create({
         model: 'claude-3-haiku-20240307',
-        max_tokens: 300,
+        max_tokens: 500,
         messages: [{ role: 'user', content: prompt }]
       })
-      return message.content[0].type === 'text' ? message.content[0].text : 'Unable to generate summary.'
+      const text = message.content[0].type === 'text' ? message.content[0].text : ''
+      return parseResponse(text)
     }
 
     if (provider === 'openai' && settings.openaiKey) {
       const client = new OpenAI({ apiKey: settings.openaiKey })
       const completion = await client.chat.completions.create({
         model: 'gpt-4o-mini',
-        max_tokens: 300,
+        max_tokens: 500,
         messages: [{ role: 'user', content: prompt }]
       })
-      return completion.choices[0]?.message?.content || 'Unable to generate summary.'
+      const text = completion.choices[0]?.message?.content || ''
+      return parseResponse(text)
     }
 
     if (provider === 'google' && settings.googleKey) {
       const genAI = new GoogleGenerativeAI(settings.googleKey)
       const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
       const result = await model.generateContent(prompt)
-      return result.response.text() || 'Unable to generate summary.'
+      const text = result.response.text() || ''
+      return parseResponse(text)
     }
 
-    return 'No AI provider configured. Add your API key in Settings.'
+    return { summary: 'No AI provider configured. Add your API key in Settings.', actionTag: null }
   } catch (error) {
     console.error(`AI summary error (${provider}):`, error)
-    return 'Failed to generate summary. Check your API key in Settings.'
+    return { summary: 'Failed to generate summary. Check your API key in Settings.', actionTag: null }
   }
 }
 
@@ -361,9 +404,9 @@ export const summarize = onRequest(
 
       const commitsContext = updatesData.map(u => `- ${u.summary}`).join('\n')
 
-      const summary = await generateAISummary(aiSettings, projectName, commitsContext, !!workstreamId)
+      const result = await generateAISummary(aiSettings, projectName, commitsContext, !!workstreamId)
 
-      res.status(200).json({ success: true, summary })
+      res.status(200).json({ success: true, summary: result.summary, actionTag: result.actionTag })
     } catch (error) {
       console.error('Error generating summary:', error)
       res.status(500).json({ error: 'Failed to generate summary' })

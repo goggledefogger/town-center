@@ -6,24 +6,32 @@ import {
   orderBy,
   onSnapshot,
   limit,
-  getDocs
+  getDocs,
+  doc,
+  getDoc,
+  updateDoc
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { useAuth } from '../../contexts/AuthContext'
-import { Project, Update } from '../../types'
+import { Project, Workstream, ActionTag } from '../../types'
 import { Spinner } from '../../components/Spinner'
 
-interface ProjectWithActivity extends Project {
-  recentUpdates: Update[]
-  workstreamCount: number
+interface WorkstreamWithSummary extends Workstream {
+  summary?: string
+  actionTag?: ActionTag
+  updateCount: number
+}
+
+interface ProjectWithWorkstreams extends Project {
+  workstreams: WorkstreamWithSummary[]
 }
 
 export function ProjectsPage() {
   const { user } = useAuth()
-  const [projects, setProjects] = useState<ProjectWithActivity[]>([])
+  const [projects, setProjects] = useState<ProjectWithWorkstreams[]>([])
   const [loading, setLoading] = useState(true)
+  const [generatingSummary, setGeneratingSummary] = useState<string | null>(null)
 
-  // Fetch projects
   useEffect(() => {
     if (!user) return
 
@@ -31,37 +39,36 @@ export function ProjectsPage() {
     const q = query(projectsRef, orderBy('lastActivityAt', 'desc'))
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const projectList: ProjectWithActivity[] = []
+      const projectList: ProjectWithWorkstreams[] = []
 
       for (const docSnap of snapshot.docs) {
         const projectData = { id: docSnap.id, ...docSnap.data() } as Project
 
-        // Get workstream count and recent updates for this project
+        // Get workstreams with their summaries
         const workstreamsRef = collection(docSnap.ref, 'workstreams')
-        const workstreamsQuery = query(workstreamsRef, orderBy('lastActivityAt', 'desc'), limit(5))
+        const workstreamsQuery = query(workstreamsRef, orderBy('lastActivityAt', 'desc'), limit(3))
         const workstreamsSnap = await getDocs(workstreamsQuery)
 
-        const recentUpdates: Update[] = []
+        const workstreams: WorkstreamWithSummary[] = []
         for (const wsDoc of workstreamsSnap.docs) {
-          const updatesRef = collection(wsDoc.ref, 'updates')
-          const updatesQuery = query(updatesRef, orderBy('timestamp', 'desc'), limit(2))
-          const updatesSnap = await getDocs(updatesQuery)
-          updatesSnap.docs.forEach(uDoc => {
-            recentUpdates.push({ id: uDoc.id, ...uDoc.data() } as Update)
-          })
-        }
+          const wsData = wsDoc.data()
 
-        // Sort by timestamp and take top 3
-        recentUpdates.sort((a, b) => {
-          const aTime = a.timestamp?.toDate?.() || new Date(0)
-          const bTime = b.timestamp?.toDate?.() || new Date(0)
-          return bTime.getTime() - aTime.getTime()
-        })
+          // Get update count for this workstream
+          const updatesRef = collection(wsDoc.ref, 'updates')
+          const updatesSnap = await getDocs(query(updatesRef, limit(20)))
+
+          workstreams.push({
+            id: wsDoc.id,
+            ...wsData,
+            summary: wsData.aiSummary || undefined,
+            actionTag: wsData.actionTag || undefined,
+            updateCount: updatesSnap.size
+          } as WorkstreamWithSummary)
+        }
 
         projectList.push({
           ...projectData,
-          recentUpdates: recentUpdates.slice(0, 3),
-          workstreamCount: workstreamsSnap.size
+          workstreams
         })
       }
 
@@ -71,6 +78,50 @@ export function ProjectsPage() {
 
     return () => unsubscribe()
   }, [user])
+
+  const generateSummary = async (projectId: string, workstreamId: string) => {
+    if (!user) return
+
+    setGeneratingSummary(`${projectId}-${workstreamId}`)
+
+    try {
+      // Get user's token
+      const tokensRef = collection(db, 'users', user.uid, 'agentTokens')
+      const tokensSnap = await getDocs(query(tokensRef, limit(1)))
+
+      if (tokensSnap.empty) {
+        alert('Please create an agent token first')
+        return
+      }
+
+      const token = tokensSnap.docs[0].data().token
+
+      // Call summarize endpoint
+      const response = await fetch('https://us-central1-town-center-agent.cloudfunctions.net/summarize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Agent-Token': token
+        },
+        body: JSON.stringify({ projectId, workstreamId })
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.summary) {
+        // Cache the summary and action tag in the workstream document
+        const wsRef = doc(db, 'users', user.uid, 'projects', projectId, 'workstreams', workstreamId)
+        await updateDoc(wsRef, {
+          aiSummary: data.summary,
+          actionTag: data.actionTag || null
+        })
+      }
+    } catch (error) {
+      console.error('Error generating summary:', error)
+    } finally {
+      setGeneratingSummary(null)
+    }
+  }
 
   const formatRelativeTime = (timestamp: any) => {
     if (!timestamp) return ''
@@ -88,21 +139,54 @@ export function ProjectsPage() {
     return date.toLocaleDateString()
   }
 
-  const getPriorityColor = (priority: string) => {
+  const getStatusColor = (status: string) => {
     const colors = {
-      high: 'border-l-red-500',
-      medium: 'border-l-yellow-500',
-      low: 'border-l-green-500',
-      debug: 'border-l-gray-400'
+      active: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+      paused: 'bg-slate-100 text-slate-600 dark:bg-slate-700/50 dark:text-slate-400',
+      completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
     }
-    return colors[priority as keyof typeof colors] || colors.medium
+    return colors[status as keyof typeof colors] || colors.active
   }
 
-  const truncateSummary = (summary: string, maxLength: number = 120) => {
-    // Take first line only, then truncate if needed
-    const firstLine = summary.split('\n')[0].trim()
-    if (firstLine.length <= maxLength) return firstLine
-    return firstLine.substring(0, maxLength).trim() + '...'
+  const getActionTagStyle = (tag: ActionTag) => {
+    const styles: Record<string, { color: string; label: string; icon: string }> = {
+      needs_attention: {
+        color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+        label: 'Needs attention',
+        icon: '!'
+      },
+      question_pending: {
+        color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+        label: 'Question pending',
+        icon: '?'
+      },
+      review_requested: {
+        color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+        label: 'Review requested',
+        icon: '👁'
+      },
+      decision_needed: {
+        color: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
+        label: 'Decision needed',
+        icon: '⚖'
+      },
+      ready_to_merge: {
+        color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+        label: 'Ready to merge',
+        icon: '✓'
+      },
+      blocked: {
+        color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+        label: 'Blocked',
+        icon: '⏸'
+      },
+      in_progress: {
+        color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
+        label: 'In progress',
+        icon: '→'
+      }
+    }
+    return tag ? styles[tag] : null
   }
 
   if (loading) {
@@ -169,7 +253,7 @@ export function ProjectsPage() {
                       {project.name}
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {project.workstreamCount} workstream{project.workstreamCount !== 1 ? 's' : ''} · {formatRelativeTime(project.lastActivityAt)}
+                      {project.workstreams.length} branch{project.workstreams.length !== 1 ? 'es' : ''} · {formatRelativeTime(project.lastActivityAt)}
                     </p>
                   </div>
                 </div>
@@ -179,21 +263,72 @@ export function ProjectsPage() {
               </div>
             </Link>
 
-            {/* Recent Updates */}
-            {project.recentUpdates.length > 0 && (
+            {/* Workstreams (Branches) */}
+            {project.workstreams.length > 0 && (
               <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                {project.recentUpdates.map((update) => (
+                {project.workstreams.map((ws) => (
                   <div
-                    key={update.id}
-                    className={`px-4 py-3 border-l-4 ${getPriorityColor(update.priority)}`}
+                    key={ws.id}
+                    className="px-4 py-3"
                   >
-                    <p className="text-sm text-gray-800 dark:text-gray-200">
-                      {truncateSummary(update.summary)}
-                    </p>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                      <span>{update.tool}</span>
-                      <span>·</span>
-                      <span>{formatRelativeTime(update.timestamp)}</span>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                          <Link
+                            to={`/projects/${project.id}/workstreams/${ws.id}`}
+                            className="font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400"
+                          >
+                            {ws.name}
+                          </Link>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(ws.status)}`}>
+                            {ws.status}
+                          </span>
+                          {ws.actionTag && getActionTagStyle(ws.actionTag) && (
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded-full font-medium ${getActionTagStyle(ws.actionTag)!.color}`}
+                              title={getActionTagStyle(ws.actionTag)!.label}
+                            >
+                              {getActionTagStyle(ws.actionTag)!.icon} {getActionTagStyle(ws.actionTag)!.label}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* AI Summary or placeholder */}
+                        {ws.summary ? (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 ml-6">
+                            {ws.summary}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-gray-500 dark:text-gray-500 ml-6 italic">
+                            {ws.updateCount} commit{ws.updateCount !== 1 ? 's' : ''} · {formatRelativeTime(ws.lastActivityAt)}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Generate Summary Button */}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          generateSummary(project.id, ws.id)
+                        }}
+                        disabled={generatingSummary === `${project.id}-${ws.id}`}
+                        className="flex-shrink-0 p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
+                        title={ws.summary ? "Refresh summary" : "Generate AI summary"}
+                      >
+                        {generatingSummary === `${project.id}-${ws.id}` ? (
+                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                        )}
+                      </button>
                     </div>
                   </div>
                 ))}
