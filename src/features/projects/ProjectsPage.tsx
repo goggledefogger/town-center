@@ -99,8 +99,10 @@ export function ProjectsPage() {
   }
 
   const truncateSummary = (summary: string, maxLength: number = 120) => {
-    if (summary.length <= maxLength) return summary
-    return summary.substring(0, maxLength).trim() + '...'
+    // Take first line only, then truncate if needed
+    const firstLine = summary.split('\n')[0].trim()
+    if (firstLine.length <= maxLength) return firstLine
+    return firstLine.substring(0, maxLength).trim() + '...'
   }
 
   if (loading) {

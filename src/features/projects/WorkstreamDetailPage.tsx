@@ -150,7 +150,7 @@ export function WorkstreamDetailPage() {
                         {update.tool} · {update.model}
                       </span>
                     </div>
-                    <p className="text-gray-900 dark:text-white">
+                    <p className="text-gray-900 dark:text-white whitespace-pre-line">
                       {update.summary}
                     </p>
                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">

@@ -180,7 +180,12 @@ export function ProjectDetailPage() {
         <div className="prose prose-sm dark:prose-invert max-w-none">
           <p className="text-gray-600 dark:text-gray-400 italic">
             {recentUpdates.length > 0 ? (
-              <>Recent work: {recentUpdates.slice(0, 3).map(u => u.summary.replace(/^\[[a-f0-9]+\]\s*/i, '')).join('. ')}</>
+              <>Recent work: {recentUpdates.slice(0, 3).map(u =>
+                u.summary
+                  .split('\n')[0]  // First line only
+                  .replace(/^\[[a-f0-9]+\]\s*/i, '')  // Remove commit hash prefix
+                  .trim()
+              ).filter(Boolean).join('. ')}</>
             ) : (
               'No recent activity. Updates will appear here as commits come in.'
             )}
@@ -277,8 +282,8 @@ export function ProjectDetailPage() {
                     key={update.id}
                     className={`px-4 py-3 border-l-4 ${getPriorityColor(update.priority)}`}
                   >
-                    <p className="text-sm text-gray-800 dark:text-gray-200">
-                      {update.summary}
+                    <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-nowrap overflow-hidden text-ellipsis">
+                      {update.summary.split('\n')[0]}
                     </p>
                     <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                       <span className="font-medium">{update.workstreamName}</span>
