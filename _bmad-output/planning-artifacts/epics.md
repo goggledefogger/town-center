@@ -15,9 +15,15 @@ implementationStatus:
   epic5: not-started
 lastImplementationUpdate: '2026-02-04'
 integrations:
-  - claude-code: hooks/Stop event
-  - antigravity: hooks + skills + rules
-  - generic: wrapper script pattern documented
+  primary: github-webhooks  # Single integration point - no per-tool hooks needed
+  endpoints:
+    - githubWebhook: receives push events, creates updates from commits
+    - postUpdate: legacy/direct API for manual posts
+    - summarize: (planned) AI-generated summaries
+dataArchitecture:
+  stored: activity updates, preferences, tokens (minimal)
+  github: source of truth for commits/PRs/branches
+  ai-on-demand: summaries generated when viewing (cheap/fast model)
 ---
 
 # town-center - Epic Breakdown

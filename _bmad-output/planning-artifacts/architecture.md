@@ -180,15 +180,36 @@ npx tailwindcss init -p
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Agent API | Cloud Function HTTP endpoint | Simple HTTP POST, no SDK needed, centralized validation |
+| Agent API | Cloud Function HTTP endpoints | Simple HTTP, no SDK needed, centralized validation |
+| Primary Integration | GitHub Webhooks | Single integration point, commits as source of truth |
+| AI Summaries | On-demand generation | Cheap/fast model (Haiku) synthesizes meaning from commits |
 | Real-time | Firestore onSnapshot | Instant updates for active views |
 | Error Handling | Structured error responses | Consistent format for agent and dashboard errors |
 
-**Agent API Endpoint:**
+**Data Architecture Philosophy:**
+- **Store minimal**: Activity updates, user preferences, tokens
+- **GitHub is source of truth**: Commits, PRs, branches
+- **AI generates meaning on demand**: Summaries synthesized from commit data
+
+**Cloud Function Endpoints:**
+
+1. **POST /postUpdate** - Direct agent updates (legacy/manual)
 ```
-POST /postUpdate
 Headers: X-Agent-Token: {token}
 Body: { project, workstream, summary, tool, model, priority }
+```
+
+2. **POST /githubWebhook** - GitHub webhook receiver (primary)
+```
+Query: ?token={agent_token}
+Body: GitHub push event payload
+```
+
+3. **POST /summarize** - AI summary generation (planned)
+```
+Headers: X-Agent-Token: {token}
+Body: { projectId, workstreamId }
+Response: { summary: "AI-generated workstream summary" }
 ```
 
 ### Frontend Architecture
