@@ -138,16 +138,20 @@ ${commitsContext}
 
 Respond with JSON only, no other text:
 {
-  "summary": "Brief bullet-point summary using this format:\\n• Main accomplishment or focus\\n• Secondary item (if relevant)\\n• Current state or next step",
+  "summary": "One plain-English sentence about what's happening",
   "actionTag": "one of: needs_attention, question_pending, review_requested, decision_needed, ready_to_merge, blocked, in_progress, or null"
 }
 
 Summary guidelines:
-- Use bullet points (•) for each line
-- Keep each bullet to one short line
-- 2-4 bullets max
-- Focus on: what was done, what's in progress, what needs attention
-- Use present perfect tense (Added, Fixed, Implemented) or present (Working on, Waiting for)
+- ONE short sentence (under 15 words ideal)
+- Write like you're telling a friend: "Added dark mode" not "Implemented dark mode feature functionality"
+- Focus on the WHAT, skip the technical details
+- Examples of good summaries:
+  - "Added user login and signup pages"
+  - "Fixing a bug with form validation"
+  - "Refactoring the API to be cleaner"
+  - "Setting up the database schema"
+- Skip commit hashes, file names, and jargon
 
 Action tag guidelines:
 - needs_attention: Something requires user action or review

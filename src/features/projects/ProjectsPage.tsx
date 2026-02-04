@@ -394,7 +394,7 @@ export function ProjectsPage() {
                 {project.workstreams.map((ws) => (
                   <div
                     key={ws.id}
-                    className="px-4 py-3"
+                    className="px-4 py-4"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
@@ -423,11 +423,11 @@ export function ProjectsPage() {
 
                         {/* AI Summary or placeholder */}
                         {ws.summary ? (
-                          <p className="text-sm text-gray-600 dark:text-gray-400 ml-6">
+                          <p className="text-sm text-gray-600 dark:text-gray-400 ml-6 mt-1 leading-relaxed">
                             {ws.summary}
                           </p>
                         ) : (
-                          <p className="text-sm text-gray-500 dark:text-gray-500 ml-6 italic">
+                          <p className="text-sm text-gray-500 dark:text-gray-500 ml-6 mt-1 italic">
                             {ws.updateCount} commit{ws.updateCount !== 1 ? 's' : ''} · {formatRelativeTime(ws.lastActivityAt)}
                           </p>
                         )}

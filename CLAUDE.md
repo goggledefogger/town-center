@@ -132,10 +132,19 @@ gh api repos/OWNER/REPO/hooks --method POST \
   -f config[content_type]='json'
 ```
 
+### GitHub App (auto-covers all repos)
+Create a GitHub App at https://github.com/settings/apps/new with:
+- Webhook URL: `https://us-central1-town-center-agent.cloudfunctions.net/githubWebhook?token=YOUR_TOKEN`
+- Permissions: Contents (read), Metadata (read)
+- Events: Push
+- Install on your account to auto-track all repos
+
 ## Recent Changes
 
+- **2026-02-04**: Simplified AI summaries to one short human-readable sentence
+- **2026-02-04**: Improved spacing/padding on workstream rows for readability
+- **2026-02-04**: Added GitHub App support for automatic webhook on all repos
 - **2026-02-04**: Auto-generate stale summaries on page load for first 3 projects
-- **2026-02-04**: AI summaries now use bullet-point format for better readability
 - **2026-02-04**: Added AI-generated action tags for at-a-glance workstream triage
 - **2026-02-04**: Branch summaries now show action indicators (needs_attention, question_pending, etc.)
 - **2026-02-04**: Improved status color scheme (blue=active, slate=paused, emerald=completed)
