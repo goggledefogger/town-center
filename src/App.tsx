@@ -5,19 +5,7 @@ import { LoginPage } from './features/auth/LoginPage'
 import { Layout } from './components/Layout'
 import { TokensPage } from './features/tokens'
 import { ProjectsPage, ProjectDetailPage, WorkstreamDetailPage } from './features/projects'
-
-function SettingsPage() {
-  return (
-    <div>
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-        Settings
-      </h1>
-      <p className="text-gray-600 dark:text-gray-400">
-        Configure your dashboard preferences.
-      </p>
-    </div>
-  )
-}
+import { SettingsPage } from './features/settings'
 
 function App() {
   return (

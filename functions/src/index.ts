@@ -116,6 +116,23 @@ export const postUpdate = onRequest(
       return
     }
 
+    // Check if activity tracking is paused for this user
+    const settingsDoc = await db.doc(`users/${tokenResult.userId}/settings/preferences`).get()
+    if (settingsDoc.exists) {
+      const settings = settingsDoc.data()
+      if (settings?.activityPaused) {
+        const response: ApiErrorResponse = {
+          success: false,
+          error: {
+            code: 'ACTIVITY_PAUSED',
+            message: 'Activity tracking is paused. Enable it in dashboard settings to resume.'
+          }
+        }
+        res.status(403).json(response)
+        return
+      }
+    }
+
     // Parse and validate request body
     const body = req.body as PostUpdateRequest
 

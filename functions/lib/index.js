@@ -107,6 +107,22 @@ exports.postUpdate = (0, https_1.onRequest)({ cors: true }, async (req, res) => 
         res.status(401).json(response);
         return;
     }
+    // Check if activity tracking is paused for this user
+    const settingsDoc = await db.doc(`users/${tokenResult.userId}/settings/preferences`).get();
+    if (settingsDoc.exists) {
+        const settings = settingsDoc.data();
+        if (settings?.activityPaused) {
+            const response = {
+                success: false,
+                error: {
+                    code: 'ACTIVITY_PAUSED',
+                    message: 'Activity tracking is paused. Enable it in dashboard settings to resume.'
+                }
+            };
+            res.status(403).json(response);
+            return;
+        }
+    }
     // Parse and validate request body
     const body = req.body;
     if (!body.project || !body.workstream || !body.summary || !body.tool || !body.model) {
