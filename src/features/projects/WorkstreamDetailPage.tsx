@@ -9,6 +9,7 @@ import {
   updateDoc as firestoreUpdateDoc
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
+import { formatRelativeTime } from '../../lib/utils'
 import { useAuth } from '../../contexts/AuthContext'
 import { Project, Workstream, Update } from '../../types'
 import { Spinner } from '../../components/Spinner'
@@ -119,6 +120,30 @@ export function WorkstreamDetailPage() {
           </h1>
         </div>
       </div>
+
+      {/* Merged Banner */}
+      {workstream?.status === 'completed' && (
+        <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span className="font-medium">
+              This branch was merged{workstream.mergedAt ? ` ${formatRelativeTime(workstream.mergedAt)}` : ''}
+            </span>
+            {workstream.mergedPrUrl && (
+              <a
+                href={workstream.mergedPrUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto text-sm text-emerald-600 dark:text-emerald-400 hover:underline"
+              >
+                View PR
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Updates Feed */}
       <div>

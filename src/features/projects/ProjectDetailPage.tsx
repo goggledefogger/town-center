@@ -307,30 +307,45 @@ export function ProjectDetailPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {workstreams.map((workstream) => (
+              {[...workstreams].sort((a, b) => {
+                if (a.status === 'completed' && b.status !== 'completed') return 1
+                if (a.status !== 'completed' && b.status === 'completed') return -1
+                return 0
+              }).map((workstream) => {
+                const isCompleted = workstream.status === 'completed'
+                return (
                 <Link
                   key={workstream.id}
                   to={`/projects/${projectId}/workstreams/${workstream.id}`}
-                  className="block bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow p-3"
+                  className={`block bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow p-3${isCompleted ? ' opacity-60' : ''}`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
-                      <span className="font-medium text-gray-900 dark:text-white text-sm">
+                      <span className={`font-medium text-sm${isCompleted ? ' line-through text-gray-500 dark:text-gray-400' : ' text-gray-900 dark:text-white'}`}>
                         {workstream.name}
                       </span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${getStatusBadge(workstream.status)}`}>
-                        {workstream.status}
-                      </span>
+                      {isCompleted ? (
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-medium">
+                          merged
+                        </span>
+                      ) : (
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${getStatusBadge(workstream.status)}`}>
+                          {workstream.status}
+                        </span>
+                      )}
                     </div>
                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatRelativeTime(workstream.lastActivityAt)}
+                      {isCompleted && workstream.mergedAt
+                        ? `merged ${formatRelativeTime(workstream.mergedAt)}`
+                        : formatRelativeTime(workstream.lastActivityAt)}
                     </span>
                   </div>
                 </Link>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
