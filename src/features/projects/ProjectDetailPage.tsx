@@ -317,7 +317,7 @@ export function ProjectDetailPage() {
                 <Link
                   key={workstream.id}
                   to={`/projects/${projectId}/workstreams/${workstream.id}`}
-                  className="block bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow p-3"
+                  className={`block bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow p-3 ${isCompleted ? 'opacity-60' : ''}`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
@@ -330,7 +330,7 @@ export function ProjectDetailPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
                       )}
-                      <span className={`font-medium text-sm truncate ${isCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
+                      <span className={`font-medium text-sm truncate ${isCompleted ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-white'}`}>
                         {workstream.name}
                       </span>
                       {isCompleted ? (

@@ -183,14 +183,15 @@ Summary guidelines:
   - "Made changes to the authentication system" (no specifics about the goal)
 
 Action tag guidelines:
+- IMPORTANT: If branch is main/master/develop/trunk, ALWAYS use null (these branches don't get merged)
 - needs_attention: Something requires user action or review
 - question_pending: A commit message asked a question or needs clarification
-- review_requested: PR or code explicitly needs review
+- review_requested: PR or code explicitly needs review (not for main/master branches)
 - decision_needed: Needs a yes/no or choice from user
-- ready_to_merge: Work appears complete and ready to merge
+- ready_to_merge: Work appears complete and ready to merge (not for main/master branches)
 - blocked: Waiting on external dependency or issue
 - in_progress: Actively being worked on, no special attention needed
-- null: No clear indicator or general maintenance work
+- null: No clear indicator, general maintenance work, or main/master/develop branches
 
 workType guidelines:
 - feature: New functionality being added
@@ -541,6 +542,99 @@ export const summarize = onRequest(
     } catch (error) {
       console.error('Error generating summary:', error)
       res.status(500).json({ error: 'Failed to generate summary' })
+    }
+  }
+)
+
+// Export sync and dedupe functions
+export { syncDeletedBranches } from './sync-deleted-branches'
+
+// POST /dedupeWorkstreams - Remove duplicate workstreams with different branch name variants
+export const dedupeWorkstreams = onRequest(
+  { cors: true },
+  async (req, res) => {
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' })
+      return
+    }
+
+    const token = req.headers['x-agent-token'] as string
+    if (!token) {
+      res.status(401).json({ error: 'Token required' })
+      return
+    }
+
+    const tokenResult = await validateToken(token)
+    if (!tokenResult.valid || !tokenResult.userId) {
+      res.status(401).json({ error: 'Invalid token' })
+      return
+    }
+
+    try {
+      const userId = tokenResult.userId
+      let duplicatesFound = 0
+      let duplicatesFixed = 0
+
+      const projectsSnapshot = await db.collection('users').doc(userId).collection('projects').get()
+
+      for (const projectDoc of projectsSnapshot.docs) {
+        const workstreamsRef = projectDoc.ref.collection('workstreams')
+        const workstreamsSnapshot = await workstreamsRef.get()
+
+        // Group by normalized name
+        const byNormalizedName: { [key: string]: any[] } = {}
+
+        for (const wsDoc of workstreamsSnapshot.docs) {
+          const wsData = wsDoc.data()
+          const normalizedName = wsData.name.replace(/^refs\/heads\//, '')
+
+          if (!byNormalizedName[normalizedName]) {
+            byNormalizedName[normalizedName] = []
+          }
+
+          byNormalizedName[normalizedName].push({
+            id: wsDoc.id,
+            ref: wsDoc.ref,
+            data: wsData
+          })
+        }
+
+        // Fix duplicates
+        for (const workstreams of Object.values(byNormalizedName)) {
+          if (workstreams.length > 1) {
+            duplicatesFound += workstreams.length - 1
+
+            // Keep the one with most recent activity
+            workstreams.sort((a, b) => {
+              const aTime = a.data.lastActivityAt?.toMillis?.() || 0
+              const bTime = b.data.lastActivityAt?.toMillis?.() || 0
+              return bTime - aTime
+            })
+
+            const keep = workstreams[0]
+            const remove = workstreams.slice(1)
+
+            // Update kept workstream to use normalized name
+            const normalizedName = keep.data.name.replace(/^refs\/heads\//, '')
+            await keep.ref.update({ name: normalizedName })
+
+            // Delete duplicates
+            for (const ws of remove) {
+              await ws.ref.delete()
+              duplicatesFixed++
+            }
+          }
+        }
+      }
+
+      res.status(200).json({
+        success: true,
+        duplicatesFound,
+        duplicatesFixed
+      })
+    } catch (error) {
+      console.error('Error deduping workstreams:', error)
+      res.status(500).json({ error: 'Failed to dedupe' })
     }
   }
 )

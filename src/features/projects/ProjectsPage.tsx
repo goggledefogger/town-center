@@ -343,7 +343,7 @@ export function ProjectsPage() {
                   return (
                   <div
                     key={ws.id}
-                    className="px-4 py-4"
+                    className={`px-4 py-4 ${isCompleted ? 'opacity-60' : ''}`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
@@ -359,7 +359,7 @@ export function ProjectsPage() {
                           )}
                           <Link
                             to={`/projects/${project.id}/workstreams/${ws.id}`}
-                            className={`font-medium hover:text-blue-600 dark:hover:text-blue-400 ${isCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}
+                            className={`font-medium hover:text-blue-600 dark:hover:text-blue-400 ${isCompleted ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-900 dark:text-white'}`}
                           >
                             {ws.name}
                           </Link>
