@@ -39,4 +39,6 @@ export type Workstream = {
   actionTag?: ActionTag
   workType?: WorkType
   summaryGeneratedAt?: Timestamp
+  mergedAt?: Timestamp
+  mergedPrUrl?: string
 }

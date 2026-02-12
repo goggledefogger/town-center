@@ -9,6 +9,7 @@ import {
   updateDoc as firestoreUpdateDoc
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
+import { formatRelativeTime } from '../../lib/utils'
 import { useAuth } from '../../contexts/AuthContext'
 import { Project, Workstream, Update } from '../../types'
 import { Spinner } from '../../components/Spinner'
@@ -119,6 +120,37 @@ export function WorkstreamDetailPage() {
           </h1>
         </div>
       </div>
+
+      {/* Merged Banner */}
+      {workstream?.status === 'completed' && (
+        <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg px-4 py-3">
+          <div className="flex items-center gap-3 text-emerald-800 dark:text-emerald-300">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+              <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <span className="font-medium text-sm">
+                This branch was merged{workstream.mergedAt ? ` ${formatRelativeTime(workstream.mergedAt)}` : ''}
+              </span>
+            </div>
+            {workstream.mergedPrUrl && (
+              <a
+                href={workstream.mergedPrUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-shrink-0 inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-300 transition-colors"
+              >
+                View PR
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Updates Feed */}
       <div>

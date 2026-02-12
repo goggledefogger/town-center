@@ -144,9 +144,9 @@ export function ProjectDetailPage() {
 
   const getStatusBadge = (status: string) => {
     const styles = {
-      active: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+      active: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
       paused: 'bg-slate-100 text-slate-600 dark:bg-slate-700/50 dark:text-slate-400',
-      completed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
+      completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
     }
     return styles[status as keyof typeof styles] || styles.active
   }
@@ -185,15 +185,15 @@ export function ProjectDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-4">
-          <Link to="/" className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-4 min-w-0">
+          <Link to="/" className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex-shrink-0">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white truncate">
               {project.name}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -207,7 +207,7 @@ export function ProjectDetailPage() {
           href={`https://github.com/${project.fullName || project.name}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
+          className="flex-shrink-0 flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
         >
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
             <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
@@ -223,7 +223,7 @@ export function ProjectDetailPage() {
             Project Status
           </h2>
           <div className="flex items-center gap-2">
-            <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+            <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
               {workstreams.length} branch{workstreams.length !== 1 ? 'es' : ''}
             </span>
             <button
@@ -307,30 +307,54 @@ export function ProjectDetailPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {workstreams.map((workstream) => (
+              {[...workstreams].sort((a, b) => {
+                if (a.status === 'completed' && b.status !== 'completed') return 1
+                if (a.status !== 'completed' && b.status === 'completed') return -1
+                return 0
+              }).map((workstream) => {
+                const isCompleted = workstream.status === 'completed'
+                return (
                 <Link
                   key={workstream.id}
                   to={`/projects/${projectId}/workstreams/${workstream.id}`}
                   className="block bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow p-3"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      <span className="font-medium text-gray-900 dark:text-white text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {isCompleted ? (
+                        <svg className="w-4 h-4 text-emerald-500 dark:text-emerald-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l3-3m0 0l3 3m-3-3v8m8-4a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                      )}
+                      <span className={`font-medium text-sm truncate ${isCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
                         {workstream.name}
                       </span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${getStatusBadge(workstream.status)}`}>
-                        {workstream.status}
-                      </span>
+                      {isCompleted ? (
+                        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-medium flex-shrink-0">
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                          </svg>
+                          merged
+                        </span>
+                      ) : (
+                        <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${getStatusBadge(workstream.status)}`}>
+                          {workstream.status}
+                        </span>
+                      )}
                     </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatRelativeTime(workstream.lastActivityAt)}
+                    <span className={`text-xs flex-shrink-0 whitespace-nowrap ${isCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                      {isCompleted && workstream.mergedAt
+                        ? `merged ${formatRelativeTime(workstream.mergedAt)}`
+                        : formatRelativeTime(workstream.lastActivityAt)}
                     </span>
                   </div>
                 </Link>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

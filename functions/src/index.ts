@@ -58,6 +58,22 @@ interface GitHubPushPayload {
   }
 }
 
+interface GitHubPullRequestPayload {
+  action: string
+  pull_request: {
+    merged: boolean
+    html_url: string
+    head: {
+      ref: string
+    }
+    title: string
+  }
+  repository: {
+    name: string
+    full_name: string
+  }
+}
+
 // User AI settings
 interface UserAISettings {
   aiProvider?: AIProvider
@@ -287,6 +303,9 @@ async function createUpdate(
 ): Promise<string> {
   const now = admin.firestore.FieldValue.serverTimestamp()
 
+  // Normalize branch/workstream name: strip refs/heads/ prefix
+  const normalizedWorkstream = workstream.replace(/^refs\/heads\//, '')
+
   const projectsRef = db.collection('users').doc(userId).collection('projects')
   const projectQuery = await projectsRef.where('name', '==', project).limit(1).get()
 
@@ -308,13 +327,13 @@ async function createUpdate(
   }
 
   const workstreamsRef = projectRef.collection('workstreams')
-  const workstreamQuery = await workstreamsRef.where('name', '==', workstream).limit(1).get()
+  const workstreamQuery = await workstreamsRef.where('name', '==', normalizedWorkstream).limit(1).get()
 
   let workstreamRef: admin.firestore.DocumentReference
 
   if (workstreamQuery.empty) {
     workstreamRef = await workstreamsRef.add({
-      name: workstream,
+      name: normalizedWorkstream,
       projectId: projectRef.id,
       status: 'active',
       lastActivityAt: now
@@ -553,12 +572,63 @@ export const githubWebhook = onRequest(
     }
 
     const githubEvent = req.headers['x-github-event'] as string
-    if (githubEvent !== 'push') {
+    if (githubEvent !== 'push' && githubEvent !== 'pull_request') {
       res.status(200).json({ message: `Event ${githubEvent} ignored` })
       return
     }
 
     try {
+      if (githubEvent === 'pull_request') {
+        const payload = req.body as GitHubPullRequestPayload
+        const project = payload.repository.name
+
+        if (tokenResult.projectScope && tokenResult.projectScope !== project) {
+          res.status(200).json({ message: 'Project not in token scope, ignored' })
+          return
+        }
+
+        // Only handle merged PRs
+        if (payload.action !== 'closed' || !payload.pull_request.merged) {
+          res.status(200).json({ message: 'PR event ignored (not a merge)' })
+          return
+        }
+
+        const branch = payload.pull_request.head.ref
+        const userId = tokenResult.userId
+
+        // Find the project
+        const projectsRef = db.collection('users').doc(userId).collection('projects')
+        const projectQuery = await projectsRef.where('name', '==', project).limit(1).get()
+
+        if (projectQuery.empty) {
+          res.status(200).json({ message: 'Project not found, ignored' })
+          return
+        }
+
+        const projectRef = projectQuery.docs[0].ref
+
+        // Find the workstream by branch name
+        const workstreamsRef = projectRef.collection('workstreams')
+        const workstreamQuery = await workstreamsRef.where('name', '==', branch).limit(1).get()
+
+        if (workstreamQuery.empty) {
+          res.status(200).json({ message: 'Workstream not found for branch, ignored' })
+          return
+        }
+
+        const workstreamRef = workstreamQuery.docs[0].ref
+        await workstreamRef.update({
+          status: 'completed',
+          mergedAt: admin.firestore.FieldValue.serverTimestamp(),
+          mergedPrUrl: payload.pull_request.html_url,
+          actionTag: null
+        })
+
+        res.status(200).json({ success: true, message: `Marked branch ${branch} as merged` })
+        return
+      }
+
+      // Handle push events
       const payload = req.body as GitHubPushPayload
       const branch = payload.ref.replace('refs/heads/', '')
       const project = payload.repository.name
