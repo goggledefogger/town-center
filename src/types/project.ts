@@ -4,6 +4,8 @@ export type ProjectCategory = 'work' | 'personal' | string
 
 export type WorkstreamStatus = 'active' | 'paused' | 'completed'
 
+export type WorkType = 'feature' | 'bugfix' | 'refactor' | 'infrastructure' | 'docs' | 'maintenance'
+
 // AI-generated action indicators for at-a-glance triage
 export type ActionTag =
   | 'needs_attention'    // Something needs user action
@@ -18,10 +20,13 @@ export type ActionTag =
 export type Project = {
   id: string
   name: string
+  fullName?: string
   description?: string
   category?: ProjectCategory
   createdAt: Timestamp
   lastActivityAt: Timestamp
+  aiSummary?: string
+  summaryGeneratedAt?: Timestamp
 }
 
 export type Workstream = {
@@ -32,5 +37,6 @@ export type Workstream = {
   lastActivityAt: Timestamp
   aiSummary?: string
   actionTag?: ActionTag
+  workType?: WorkType
   summaryGeneratedAt?: Timestamp
 }

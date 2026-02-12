@@ -156,9 +156,9 @@ npx tailwindcss init -p
 
 **Collection Structure:**
 - `/users/{uid}` — User profile and preferences
-- `/users/{uid}/projects/{pid}` — Projects owned by user
-- `/users/{uid}/projects/{pid}/workstreams/{wid}` — Workstreams within project
-- `/users/{uid}/projects/{pid}/workstreams/{wid}/updates/{uid}` — Updates within workstream
+- `/users/{uid}/projects/{pid}` — Projects owned by user (includes `aiSummary`, `summaryGeneratedAt` for feature-level summaries)
+- `/users/{uid}/projects/{pid}/workstreams/{wid}` — Workstreams within project (includes `workType` for classification)
+- `/users/{uid}/projects/{pid}/workstreams/{wid}/updates/{uid}` — Updates within workstream (includes `commitBody`, `filesChanged`, `commitUrl` from enriched webhook data)
 - `/users/{uid}/agentTokens/{tid}` — Agent authentication tokens
 
 ### Authentication & Security
@@ -182,14 +182,14 @@ npx tailwindcss init -p
 |----------|--------|-----------|
 | Agent API | Cloud Function HTTP endpoints | Simple HTTP, no SDK needed, centralized validation |
 | Primary Integration | GitHub Webhooks | Single integration point, commits as source of truth |
-| AI Summaries | On-demand generation | Cheap/fast model (Haiku) synthesizes meaning from commits |
+| AI Summaries | On-demand generation (implemented) | Multi-provider (Anthropic Claude Haiku / OpenAI GPT-4o-mini / Google Gemini Flash), branch-level and feature-level summaries with enriched context |
 | Real-time | Firestore onSnapshot | Instant updates for active views |
 | Error Handling | Structured error responses | Consistent format for agent and dashboard errors |
 
 **Data Architecture Philosophy:**
 - **Store minimal**: Activity updates, user preferences, tokens
 - **GitHub is source of truth**: Commits, PRs, branches
-- **AI generates meaning on demand**: Summaries synthesized from commit data
+- **AI generates meaning on demand**: Multi-provider summaries (user-configured API keys) with feature-level summaries using enriched commit context (body, files changed, URLs)
 
 **Cloud Function Endpoints:**
 
@@ -205,11 +205,11 @@ Query: ?token={agent_token}
 Body: GitHub push event payload
 ```
 
-3. **POST /summarize** - AI summary generation (planned)
+3. **POST /summarize** - AI summary generation (implemented)
 ```
 Headers: X-Agent-Token: {token}
 Body: { projectId, workstreamId }
-Response: { summary: "AI-generated workstream summary" }
+Response: { summary: "AI-generated summary", workType: "feature|bugfix|refactor|...", actionTag: "needs_attention|question_pending|review_requested|..." }
 ```
 
 ### Frontend Architecture

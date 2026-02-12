@@ -16,4 +16,7 @@ export type Update = {
   status?: UpdateStatus
   timestamp: Timestamp
   isRead: boolean
+  commitBody?: string
+  filesChanged?: string[]
+  commitUrl?: string
 }
