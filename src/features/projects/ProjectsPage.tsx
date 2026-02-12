@@ -343,22 +343,31 @@ export function ProjectsPage() {
                   return (
                   <div
                     key={ws.id}
-                    className={`px-4 py-4${isCompleted ? ' opacity-60' : ''}`}
+                    className="px-4 py-4"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                          </svg>
+                          {isCompleted ? (
+                            <svg className="w-4 h-4 text-emerald-500 dark:text-emerald-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l3-3m0 0l3 3m-3-3v8m8-4a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                          )}
                           <Link
                             to={`/projects/${project.id}/workstreams/${ws.id}`}
-                            className={`font-medium hover:text-blue-600 dark:hover:text-blue-400${isCompleted ? ' line-through text-gray-500 dark:text-gray-400' : ' text-gray-900 dark:text-white'}`}
+                            className={`font-medium hover:text-blue-600 dark:hover:text-blue-400 ${isCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}
                           >
                             {ws.name}
                           </Link>
                           {isCompleted ? (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-medium">
+                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-medium">
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                              </svg>
                               merged
                             </span>
                           ) : (
@@ -385,38 +394,47 @@ export function ProjectsPage() {
 
                         {/* AI Summary or placeholder */}
                         {ws.summary ? (
-                          <p className="text-sm text-gray-600 dark:text-gray-400 ml-6 mt-1 leading-relaxed">
+                          <p className={`text-sm ml-6 mt-1 leading-relaxed ${isCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-400'}`}>
                             {ws.summary}
-                            <span className="text-gray-400 dark:text-gray-500"> · {formatRelativeTime(ws.lastActivityAt)}</span>
+                            <span className="text-gray-400 dark:text-gray-500">
+                              {' '} · {isCompleted && ws.mergedAt
+                                ? `merged ${formatRelativeTime(ws.mergedAt)}`
+                                : formatRelativeTime(ws.lastActivityAt)}
+                            </span>
                           </p>
                         ) : (
-                          <p className="text-sm text-gray-500 dark:text-gray-500 ml-6 mt-1 italic">
-                            {ws.updateCount} commit{ws.updateCount !== 1 ? 's' : ''} · {formatRelativeTime(ws.lastActivityAt)}
+                          <p className="text-sm text-gray-400 dark:text-gray-500 ml-6 mt-1 italic">
+                            {ws.updateCount} commit{ws.updateCount !== 1 ? 's' : ''}
+                            {' '} · {isCompleted && ws.mergedAt
+                              ? `merged ${formatRelativeTime(ws.mergedAt)}`
+                              : formatRelativeTime(ws.lastActivityAt)}
                           </p>
                         )}
                       </div>
 
-                      {/* Generate Summary Button */}
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault()
-                          generateSummary(project.id, ws.id)
-                        }}
-                        disabled={generatingSummary === `${project.id}-${ws.id}`}
-                        className="flex-shrink-0 p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
-                        title={ws.summary ? "Refresh summary" : "Generate AI summary"}
-                      >
-                        {generatingSummary === `${project.id}-${ws.id}` ? (
-                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
-                        ) : (
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                          </svg>
-                        )}
-                      </button>
+                      {/* Generate Summary Button - hidden for completed workstreams */}
+                      {!isCompleted && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault()
+                            generateSummary(project.id, ws.id)
+                          }}
+                          disabled={generatingSummary === `${project.id}-${ws.id}`}
+                          className="flex-shrink-0 p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
+                          title={ws.summary ? "Refresh summary" : "Generate AI summary"}
+                        >
+                          {generatingSummary === `${project.id}-${ws.id}` ? (
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
                   )
