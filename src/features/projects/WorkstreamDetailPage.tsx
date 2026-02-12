@@ -6,7 +6,8 @@ import {
   query,
   orderBy,
   onSnapshot,
-  updateDoc as firestoreUpdateDoc
+  updateDoc as firestoreUpdateDoc,
+  serverTimestamp
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { formatRelativeTime } from '../../lib/utils'
@@ -21,6 +22,7 @@ export function WorkstreamDetailPage() {
   const [workstream, setWorkstream] = useState<Workstream | null>(null)
   const [updates, setUpdates] = useState<Update[]>([])
   const [loading, setLoading] = useState(true)
+  const [marking, setMarking] = useState(false)
 
   useEffect(() => {
     if (!user || !projectId || !workstreamId) return
@@ -89,6 +91,25 @@ export function WorkstreamDetailPage() {
     return styles[priority as keyof typeof styles] || styles.medium
   }
 
+  const markAsCompleted = async () => {
+    if (!user || !projectId || !workstreamId || !workstream) return
+
+    setMarking(true)
+    try {
+      const wsRef = doc(db, 'users', user.uid, 'projects', projectId, 'workstreams', workstreamId)
+      await firestoreUpdateDoc(wsRef, {
+        status: 'completed',
+        mergedAt: serverTimestamp(),
+        actionTag: null
+      })
+    } catch (error) {
+      console.error('Error marking as completed:', error)
+      alert('Failed to mark as completed. Please try again.')
+    } finally {
+      setMarking(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -100,25 +121,53 @@ export function WorkstreamDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          to={`/projects/${projectId}`}
-          className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </Link>
-        <div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-            <Link to="/" className="hover:underline">Projects</Link>
-            <span>/</span>
-            <Link to={`/projects/${projectId}`} className="hover:underline">{project?.name}</Link>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link
+            to={`/projects/${projectId}`}
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex-shrink-0"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Link>
+          <div>
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <Link to="/" className="hover:underline">Projects</Link>
+              <span>/</span>
+              <Link to={`/projects/${projectId}`} className="hover:underline">{project?.name}</Link>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {workstream?.name}
+            </h1>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {workstream?.name}
-          </h1>
         </div>
+
+        {/* Mark as Completed button - only show for non-completed workstreams */}
+        {workstream && workstream.status !== 'completed' && (
+          <button
+            onClick={markAsCompleted}
+            disabled={marking}
+            className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors disabled:opacity-50"
+          >
+            {marking ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Marking...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+                Mark as Completed
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Merged Banner */}
