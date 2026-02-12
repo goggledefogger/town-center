@@ -13,12 +13,13 @@ import {
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
 import { useAuth } from '../../contexts/AuthContext'
-import { Project, Workstream, ActionTag } from '../../types'
+import { Project, Workstream, ActionTag, WorkType } from '../../types'
 import { Spinner } from '../../components/Spinner'
 
 interface WorkstreamWithSummary extends Workstream {
   summary?: string
   actionTag?: ActionTag
+  workType?: WorkType
   updateCount: number
   summaryGeneratedAt?: any // Firestore Timestamp
 }
@@ -64,6 +65,7 @@ export function ProjectsPage() {
             ...wsData,
             summary: wsData.aiSummary || undefined,
             actionTag: wsData.actionTag || undefined,
+            workType: wsData.workType || undefined,
             updateCount: updatesSnap.size,
             summaryGeneratedAt: wsData.summaryGeneratedAt || undefined
           } as WorkstreamWithSummary)
@@ -153,6 +155,7 @@ export function ProjectsPage() {
         await updateDoc(wsRef, {
           aiSummary: data.summary,
           actionTag: data.actionTag || null,
+          workType: data.workType || null,
           summaryGeneratedAt: serverTimestamp()
         })
 
@@ -166,6 +169,7 @@ export function ProjectsPage() {
                 ...ws,
                 summary: data.summary,
                 actionTag: data.actionTag || undefined,
+                workType: data.workType || undefined,
                 summaryGeneratedAt: new Date()
               }
             })
@@ -216,11 +220,12 @@ export function ProjectsPage() {
       }
 
       if (data.success && data.summary) {
-        // Cache the summary and action tag in the workstream document
+        // Cache the summary, action tag, and work type in the workstream document
         const wsRef = doc(db, 'users', user.uid, 'projects', projectId, 'workstreams', workstreamId)
         await updateDoc(wsRef, {
           aiSummary: data.summary,
           actionTag: data.actionTag || null,
+          workType: data.workType || null,
           summaryGeneratedAt: serverTimestamp()
         })
 
@@ -235,6 +240,7 @@ export function ProjectsPage() {
                 ...ws,
                 summary: data.summary,
                 actionTag: data.actionTag || undefined,
+                workType: data.workType || undefined,
                 summaryGeneratedAt: new Date()
               }
             })
@@ -411,6 +417,11 @@ export function ProjectsPage() {
                           <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(ws.status)}`}>
                             {ws.status}
                           </span>
+                          {ws.workType && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                              {ws.workType}
+                            </span>
+                          )}
                           {ws.actionTag && getActionTagStyle(ws.actionTag) && (
                             <span
                               className={`text-xs px-2 py-0.5 rounded-full font-medium ${getActionTagStyle(ws.actionTag)!.color}`}
@@ -425,6 +436,7 @@ export function ProjectsPage() {
                         {ws.summary ? (
                           <p className="text-sm text-gray-600 dark:text-gray-400 ml-6 mt-1 leading-relaxed">
                             {ws.summary}
+                            <span className="text-gray-400 dark:text-gray-500"> · {formatRelativeTime(ws.lastActivityAt)}</span>
                           </p>
                         ) : (
                           <p className="text-sm text-gray-500 dark:text-gray-500 ml-6 mt-1 italic">

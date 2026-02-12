@@ -88,30 +88,36 @@ async function getUserAISettings(userId) {
     return {};
 }
 // Generate summary using the user's configured AI provider
-async function generateAISummary(settings, projectName, commitsContext, isWorkstream) {
-    const prompt = `You are summarizing recent development activity for a project dashboard. Be concise and helpful.
+async function generateAISummary(settings, projectName, commitsContext, mode, branchName) {
+    const workstreamPrompt = `You are helping a developer remember what they were working on after being away. Summarize the FEATURE or GOAL being built, not individual commits.
 
 Project: ${projectName}
-${isWorkstream ? 'Branch activity:' : 'Recent activity across all branches:'}
+Branch: ${branchName || 'unknown'}
 
+Recent commits on this branch:
 ${commitsContext}
 
 Respond with JSON only, no other text:
 {
-  "summary": "One plain-English sentence about what's happening",
-  "actionTag": "one of: needs_attention, question_pending, review_requested, decision_needed, ready_to_merge, blocked, in_progress, or null"
+  "summary": "What feature/goal is being worked on (present progressive, ~20 words)",
+  "actionTag": "one of: needs_attention, question_pending, review_requested, decision_needed, ready_to_merge, blocked, in_progress, or null",
+  "workType": "one of: feature, bugfix, refactor, infrastructure, docs, maintenance"
 }
 
 Summary guidelines:
-- ONE short sentence (under 15 words ideal)
-- Write like you're telling a friend: "Added dark mode" not "Implemented dark mode feature functionality"
-- Focus on the WHAT, skip the technical details
+- Describe the FEATURE or GOAL, not individual commits
+- Use present progressive: "Building...", "Fixing...", "Adding...", "Refactoring..."
+- Around 20 words (up to 25 max), enough to capture the goal
+- Think: what would you tell someone who asks "what were you working on?"
+- Use file paths and branch name as clues about the feature area
 - Examples of good summaries:
-  - "Added user login and signup pages"
-  - "Fixing a bug with form validation"
-  - "Refactoring the API to be cleaner"
-  - "Setting up the database schema"
-- Skip commit hashes, file names, and jargon
+  - "Building a GitHub Issues to Markdown converter with fallback handling for edge cases"
+  - "Fixing authentication flow where sessions expire during OAuth callback"
+  - "Adding real-time notifications for agent activity updates across all projects"
+  - "Refactoring the webhook pipeline to support multiple event types beyond push"
+- Examples of bad summaries:
+  - "Updated index.ts and fixed a bug" (too vague, commit-level)
+  - "Made changes to the authentication system" (no specifics about the goal)
 
 Action tag guidelines:
 - needs_attention: Something requires user action or review
@@ -121,25 +127,56 @@ Action tag guidelines:
 - ready_to_merge: Work appears complete and ready to merge
 - blocked: Waiting on external dependency or issue
 - in_progress: Actively being worked on, no special attention needed
-- null: No clear indicator or general maintenance work`;
+- null: No clear indicator or general maintenance work
+
+workType guidelines:
+- feature: New functionality being added
+- bugfix: Fixing broken behavior
+- refactor: Restructuring without changing behavior
+- infrastructure: CI/CD, build system, deployment, config
+- docs: Documentation changes
+- maintenance: Dependency updates, cleanup, minor chores`;
+    const projectPrompt = `You are helping a developer remember what's happening across a project after being away. Summarize the overall direction and active work.
+
+Project: ${projectName}
+
+Recent activity across all branches:
+${commitsContext}
+
+Respond with JSON only, no other text:
+{
+  "summary": "What is happening in this project overall (~20 words)",
+  "actionTag": null,
+  "workType": null
+}
+
+Summary guidelines:
+- Describe the overall project direction, not individual commits
+- Use present progressive: "Building...", "Adding...", "Working on..."
+- Around 20 words (up to 25 max)
+- If multiple features are in progress, mention the 1-2 most significant
+- Think: what would you tell someone who asks "what's going on in this project?"
+- Examples:
+  - "Building a project dashboard with AI summaries and GitHub webhook integration"
+  - "Adding multi-provider AI support and improving the branch-level summary experience"`;
+    const prompt = mode === 'workstream' ? workstreamPrompt : projectPrompt;
     const provider = settings.aiProvider || 'anthropic';
     const parseResponse = (text) => {
         try {
-            // Try to extract JSON from the response
             const jsonMatch = text.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 const parsed = JSON.parse(jsonMatch[0]);
                 return {
                     summary: parsed.summary || 'Unable to generate summary.',
-                    actionTag: parsed.actionTag || null
+                    actionTag: parsed.actionTag || null,
+                    workType: parsed.workType || null
                 };
             }
         }
         catch {
-            // If JSON parsing fails, use the raw text as summary
-            return { summary: text, actionTag: null };
+            return { summary: text, actionTag: null, workType: null };
         }
-        return { summary: text, actionTag: null };
+        return { summary: text, actionTag: null, workType: null };
     };
     try {
         if (provider === 'anthropic' && settings.anthropicKey) {
@@ -169,15 +206,15 @@ Action tag guidelines:
             const text = result.response.text() || '';
             return parseResponse(text);
         }
-        return { summary: 'No AI provider configured. Add your API key in Settings.', actionTag: null };
+        return { summary: 'No AI provider configured. Add your API key in Settings.', actionTag: null, workType: null };
     }
     catch (error) {
         console.error(`AI summary error (${provider}):`, error);
-        return { summary: 'Failed to generate summary. Check your API key in Settings.', actionTag: null };
+        return { summary: 'Failed to generate summary. Check your API key in Settings.', actionTag: null, workType: null };
     }
 }
 // Create an update for a user
-async function createUpdate(userId, project, workstream, summary, tool, model, priority = 'medium') {
+async function createUpdate(userId, project, workstream, summary, tool, model, priority = 'medium', metadata) {
     const now = admin.firestore.FieldValue.serverTimestamp();
     const projectsRef = db.collection('users').doc(userId).collection('projects');
     const projectQuery = await projectsRef.where('name', '==', project).limit(1).get();
@@ -208,7 +245,7 @@ async function createUpdate(userId, project, workstream, summary, tool, model, p
         workstreamRef = workstreamQuery.docs[0].ref;
         await workstreamRef.update({ lastActivityAt: now });
     }
-    const updateRef = await workstreamRef.collection('updates').add({
+    const updateData = {
         workstreamId: workstreamRef.id,
         projectId: projectRef.id,
         summary,
@@ -217,7 +254,14 @@ async function createUpdate(userId, project, workstream, summary, tool, model, p
         priority,
         timestamp: now,
         isRead: false
-    });
+    };
+    if (metadata?.commitBody)
+        updateData.commitBody = metadata.commitBody;
+    if (metadata?.filesChanged?.length)
+        updateData.filesChanged = metadata.filesChanged;
+    if (metadata?.commitUrl)
+        updateData.commitUrl = metadata.commitUrl;
+    const updateRef = await workstreamRef.collection('updates').add(updateData);
     return updateRef.id;
 }
 // Determine priority from commit message
@@ -298,25 +342,41 @@ exports.summarize = (0, https_1.onRequest)({ cors: true }, async (req, res) => {
         const userId = tokenResult.userId;
         // Get user's AI settings
         const aiSettings = await getUserAISettings(userId);
-        // Fetch recent updates for context
         let updatesData = [];
+        let branchName;
         if (workstreamId) {
+            // Get branch name from workstream doc
+            const wsDoc = await db.doc(`users/${userId}/projects/${projectId}/workstreams/${workstreamId}`).get();
+            branchName = wsDoc.data()?.name;
             const updatesRef = db.collection(`users/${userId}/projects/${projectId}/workstreams/${workstreamId}/updates`);
             const updatesSnap = await updatesRef.orderBy('timestamp', 'desc').limit(20).get();
             updatesData = updatesSnap.docs.map(doc => {
                 const data = doc.data();
-                return { summary: data.summary, timestamp: data.timestamp?.toDate?.()?.toISOString() || '', tool: data.tool };
+                return {
+                    summary: data.summary,
+                    timestamp: data.timestamp?.toDate?.()?.toISOString() || '',
+                    tool: data.tool,
+                    commitBody: data.commitBody,
+                    filesChanged: data.filesChanged
+                };
             });
         }
         else {
             const workstreamsRef = db.collection(`users/${userId}/projects/${projectId}/workstreams`);
             const workstreamsSnap = await workstreamsRef.get();
             for (const wsDoc of workstreamsSnap.docs) {
+                const wsData = wsDoc.data();
                 const updatesRef = wsDoc.ref.collection('updates');
                 const updatesSnap = await updatesRef.orderBy('timestamp', 'desc').limit(10).get();
                 updatesSnap.docs.forEach(doc => {
                     const data = doc.data();
-                    updatesData.push({ summary: data.summary, timestamp: data.timestamp?.toDate?.()?.toISOString() || '', tool: data.tool });
+                    updatesData.push({
+                        summary: `[${wsData.name}] ${data.summary}`,
+                        timestamp: data.timestamp?.toDate?.()?.toISOString() || '',
+                        tool: data.tool,
+                        commitBody: data.commitBody,
+                        filesChanged: data.filesChanged
+                    });
                 });
             }
             updatesData.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -328,9 +388,23 @@ exports.summarize = (0, https_1.onRequest)({ cors: true }, async (req, res) => {
         }
         const projectDoc = await db.doc(`users/${userId}/projects/${projectId}`).get();
         const projectName = projectDoc.data()?.name || 'Unknown Project';
-        const commitsContext = updatesData.map(u => `- ${u.summary}`).join('\n');
-        const result = await generateAISummary(aiSettings, projectName, commitsContext, !!workstreamId);
-        res.status(200).json({ success: true, summary: result.summary, actionTag: result.actionTag });
+        // Build enriched context with commit bodies and file paths
+        const commitsContext = updatesData.map(u => {
+            let line = `- ${u.summary}`;
+            if (u.commitBody)
+                line += `\n  Body: ${u.commitBody}`;
+            if (u.filesChanged?.length)
+                line += `\n  Files: ${u.filesChanged.slice(0, 10).join(', ')}${u.filesChanged.length > 10 ? ` (+${u.filesChanged.length - 10} more)` : ''}`;
+            return line;
+        }).join('\n');
+        const mode = workstreamId ? 'workstream' : 'project';
+        const result = await generateAISummary(aiSettings, projectName, commitsContext, mode, branchName);
+        res.status(200).json({
+            success: true,
+            summary: result.summary,
+            actionTag: result.actionTag,
+            workType: result.workType
+        });
     }
     catch (error) {
         console.error('Error generating summary:', error);
@@ -372,9 +446,16 @@ exports.githubWebhook = (0, https_1.onRequest)({ cors: false }, async (req, res)
         }
         const updateIds = [];
         for (const commit of payload.commits) {
-            const summary = `[${commit.id.substring(0, 7)}] ${commit.message.split('\n')[0]}`;
+            const messageLines = commit.message.split('\n');
+            const summary = `[${commit.id.substring(0, 7)}] ${messageLines[0]}`;
+            const commitBody = messageLines.slice(1).join('\n').trim() || undefined;
+            const filesChanged = [
+                ...(commit.added || []),
+                ...(commit.modified || []),
+                ...(commit.removed || [])
+            ];
             const priority = getPriorityFromCommit(commit.message);
-            const updateId = await createUpdate(tokenResult.userId, project, branch, summary, 'github', 'git', priority);
+            const updateId = await createUpdate(tokenResult.userId, project, branch, summary, 'github', 'git', priority, { commitBody, filesChanged: filesChanged.length > 0 ? filesChanged : undefined, commitUrl: commit.url });
             updateIds.push(updateId);
         }
         res.status(200).json({ success: true, message: `Processed ${updateIds.length} commits`, updateIds });
