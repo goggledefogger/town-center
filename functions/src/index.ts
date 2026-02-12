@@ -549,6 +549,74 @@ export const summarize = onRequest(
 // Export sync and dedupe functions
 export { syncDeletedBranches } from './sync-deleted-branches'
 
+// POST /deleteProject - Delete a project and all its workstreams/updates
+export const deleteProject = onRequest(
+  { cors: true },
+  async (req, res) => {
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' })
+      return
+    }
+
+    const token = req.headers['x-agent-token'] as string
+    const projectName = req.body.projectName
+
+    if (!token || !projectName) {
+      res.status(400).json({ error: 'agentToken and projectName required' })
+      return
+    }
+
+    const tokenResult = await validateToken(token)
+    if (!tokenResult.valid || !tokenResult.userId) {
+      res.status(401).json({ error: 'Invalid token' })
+      return
+    }
+
+    try {
+      const userId = tokenResult.userId
+      const projectsRef = db.collection('users').doc(userId).collection('projects')
+      const projectQuery = await projectsRef.where('name', '==', projectName).limit(1).get()
+
+      if (projectQuery.empty) {
+        res.status(404).json({ error: 'Project not found' })
+        return
+      }
+
+      const projectDoc = projectQuery.docs[0]
+      let workstreamsDeleted = 0
+      let updatesDeleted = 0
+
+      // Delete all workstreams and their updates
+      const workstreamsSnapshot = await projectDoc.ref.collection('workstreams').get()
+
+      for (const wsDoc of workstreamsSnapshot.docs) {
+        const updatesSnapshot = await wsDoc.ref.collection('updates').get()
+        updatesDeleted += updatesSnapshot.size
+
+        for (const updateDoc of updatesSnapshot.docs) {
+          await updateDoc.ref.delete()
+        }
+
+        await wsDoc.ref.delete()
+        workstreamsDeleted++
+      }
+
+      // Delete the project
+      await projectDoc.ref.delete()
+
+      res.status(200).json({
+        success: true,
+        projectName,
+        workstreamsDeleted,
+        updatesDeleted
+      })
+    } catch (error) {
+      console.error('Error deleting project:', error)
+      res.status(500).json({ error: 'Failed to delete project' })
+    }
+  }
+)
+
 // POST /dedupeWorkstreams - Remove duplicate workstreams with different branch name variants
 export const dedupeWorkstreams = onRequest(
   { cors: true },
