@@ -183,14 +183,15 @@ Summary guidelines:
   - "Made changes to the authentication system" (no specifics about the goal)
 
 Action tag guidelines:
+- IMPORTANT: If branch is main/master/develop/trunk, ALWAYS use null (these branches don't get merged)
 - needs_attention: Something requires user action or review
 - question_pending: A commit message asked a question or needs clarification
-- review_requested: PR or code explicitly needs review
+- review_requested: PR or code explicitly needs review (not for main/master branches)
 - decision_needed: Needs a yes/no or choice from user
-- ready_to_merge: Work appears complete and ready to merge
+- ready_to_merge: Work appears complete and ready to merge (not for main/master branches)
 - blocked: Waiting on external dependency or issue
 - in_progress: Actively being worked on, no special attention needed
-- null: No clear indicator or general maintenance work
+- null: No clear indicator, general maintenance work, or main/master/develop branches
 
 workType guidelines:
 - feature: New functionality being added
@@ -544,6 +545,9 @@ export const summarize = onRequest(
     }
   }
 )
+
+// Export sync function
+export { syncDeletedBranches } from './sync-deleted-branches'
 
 // POST /githubWebhook - GitHub webhook endpoint
 export const githubWebhook = onRequest(
