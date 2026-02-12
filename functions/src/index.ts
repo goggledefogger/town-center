@@ -546,8 +546,98 @@ export const summarize = onRequest(
   }
 )
 
-// Export sync function
+// Export sync and dedupe functions
 export { syncDeletedBranches } from './sync-deleted-branches'
+
+// POST /dedupeWorkstreams - Remove duplicate workstreams with different branch name variants
+export const dedupeWorkstreams = onRequest(
+  { cors: true },
+  async (req, res) => {
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' })
+      return
+    }
+
+    const token = req.headers['x-agent-token'] as string
+    if (!token) {
+      res.status(401).json({ error: 'Token required' })
+      return
+    }
+
+    const tokenResult = await validateToken(token)
+    if (!tokenResult.valid || !tokenResult.userId) {
+      res.status(401).json({ error: 'Invalid token' })
+      return
+    }
+
+    try {
+      const userId = tokenResult.userId
+      let duplicatesFound = 0
+      let duplicatesFixed = 0
+
+      const projectsSnapshot = await db.collection('users').doc(userId).collection('projects').get()
+
+      for (const projectDoc of projectsSnapshot.docs) {
+        const workstreamsRef = projectDoc.ref.collection('workstreams')
+        const workstreamsSnapshot = await workstreamsRef.get()
+
+        // Group by normalized name
+        const byNormalizedName: { [key: string]: any[] } = {}
+
+        for (const wsDoc of workstreamsSnapshot.docs) {
+          const wsData = wsDoc.data()
+          const normalizedName = wsData.name.replace(/^refs\/heads\//, '')
+
+          if (!byNormalizedName[normalizedName]) {
+            byNormalizedName[normalizedName] = []
+          }
+
+          byNormalizedName[normalizedName].push({
+            id: wsDoc.id,
+            ref: wsDoc.ref,
+            data: wsData
+          })
+        }
+
+        // Fix duplicates
+        for (const workstreams of Object.values(byNormalizedName)) {
+          if (workstreams.length > 1) {
+            duplicatesFound += workstreams.length - 1
+
+            // Keep the one with most recent activity
+            workstreams.sort((a, b) => {
+              const aTime = a.data.lastActivityAt?.toMillis?.() || 0
+              const bTime = b.data.lastActivityAt?.toMillis?.() || 0
+              return bTime - aTime
+            })
+
+            const keep = workstreams[0]
+            const remove = workstreams.slice(1)
+
+            // Update kept workstream to use normalized name
+            const normalizedName = keep.data.name.replace(/^refs\/heads\//, '')
+            await keep.ref.update({ name: normalizedName })
+
+            // Delete duplicates
+            for (const ws of remove) {
+              await ws.ref.delete()
+              duplicatesFixed++
+            }
+          }
+        }
+      }
+
+      res.status(200).json({
+        success: true,
+        duplicatesFound,
+        duplicatesFixed
+      })
+    } catch (error) {
+      console.error('Error deduping workstreams:', error)
+      res.status(500).json({ error: 'Failed to dedupe' })
+    }
+  }
+)
 
 // POST /githubWebhook - GitHub webhook endpoint
 export const githubWebhook = onRequest(
