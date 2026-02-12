@@ -47,7 +47,7 @@ town-center/
 
 | Endpoint | Purpose |
 |----------|---------|
-| `POST /githubWebhook?token=xxx` | Receives GitHub push events, creates updates |
+| `POST /githubWebhook?token=xxx` | Receives GitHub push + pull_request events |
 | `POST /postUpdate` | Direct API for agents (legacy/manual) |
 | `POST /summarize` | AI-generated summaries using user's API keys |
 
@@ -62,6 +62,7 @@ users/{uid}/
 │       └── updates/{uid}/
 │           └── summary, tool, model, priority, timestamp, isRead,
 │               commitBody, filesChanged, commitUrl
+│       mergedAt, mergedPrUrl (set when PR merged)
 ├── agentTokens/{tid}/
 │   └── token, label, isRevoked, createdAt, lastUsedAt
 └── settings/
@@ -89,6 +90,10 @@ users/{uid}/
 - [x] workType classification (feature/bugfix/refactor/infrastructure/docs/maintenance)
 - [x] Project-level AI summaries on detail page
 - [x] Enriched webhook data (commit bodies, file paths, commit URLs)
+- [x] Merged/completed workstream detection via pull_request webhook
+- [x] Branch name normalization (dedup refs/heads/ prefix)
+- [x] Visual treatment for merged workstreams (dimmed, merged badge, sorted after active)
+- [x] Unit tests (44 tests: branch normalization, webhook handler, sorting, staleness)
 
 ### In Progress
 - [ ] Action tag click-through actions
@@ -112,6 +117,7 @@ users/{uid}/
 ## Testing
 
 - **Frontend**: `npm run dev` (runs on localhost:5173+)
+- **Unit tests**: `npm test` (vitest — 44 tests across frontend logic and cloud functions)
 - **Functions**: Deploy to Firebase (no local emulator due to Java requirements)
 - **Webhook**: Use `gh api` to create/test webhooks
 
@@ -140,12 +146,15 @@ gh api repos/OWNER/REPO/hooks --method POST \
 ### GitHub App (auto-covers all repos)
 Create a GitHub App at https://github.com/settings/apps/new with:
 - Webhook URL: `https://us-central1-town-center-agent.cloudfunctions.net/githubWebhook?token=YOUR_TOKEN`
-- Permissions: Contents (read), Metadata (read)
-- Events: Push
+- Permissions: Contents (read), Metadata (read), Pull requests (read)
+- Events: Push, Pull request
 - Install on your account to auto-track all repos
 
 ## Recent Changes
 
+- **2026-02-11**: Merged/completed workstream display with PR webhook detection
+- **2026-02-11**: Branch name normalization to prevent duplicate workstream entries
+- **2026-02-11**: Unit test suite (44 tests via vitest)
 - **2026-02-11**: Feature-level AI summaries replacing commit-level summaries
 - **2026-02-11**: workType classification pills on branch names (feature/bugfix/refactor/infrastructure/docs/maintenance)
 - **2026-02-11**: Project-level AI summary on detail page
