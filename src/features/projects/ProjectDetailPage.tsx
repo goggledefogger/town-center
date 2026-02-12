@@ -128,12 +128,21 @@ export function ProjectDetailPage() {
 
       if (response.ok && data.success && data.summary) {
         const projectRef = doc(db, 'users', user.uid, 'projects', projectId)
-        await updateDoc(projectRef, {
+        const updateData: any = {
           aiSummary: data.summary,
           summaryGeneratedAt: serverTimestamp()
-        })
+        }
+        if (data.imageUrl) {
+          updateData.aiImageUrl = data.imageUrl
+        }
+        await updateDoc(projectRef, updateData)
 
-        setProject(prev => prev ? { ...prev, aiSummary: data.summary, summaryGeneratedAt: new Date() as any } : prev)
+        setProject(prev => prev ? {
+          ...prev,
+          aiSummary: data.summary,
+          aiImageUrl: data.imageUrl,
+          summaryGeneratedAt: new Date() as any
+        } : prev)
       }
     } catch (error) {
       console.error('Error generating project summary:', error)
@@ -249,9 +258,20 @@ export function ProjectDetailPage() {
         {/* AI Summary */}
         <div className="prose prose-sm dark:prose-invert max-w-none">
           {project.aiSummary ? (
-            <p className="text-gray-700 dark:text-gray-300">
-              {project.aiSummary}
-            </p>
+            <div className="space-y-4">
+              <p className="text-gray-700 dark:text-gray-300">
+                {project.aiSummary}
+              </p>
+              {project.aiImageUrl && (
+                <div className="mt-4">
+                  <img
+                    src={project.aiImageUrl}
+                    alt="AI generated representation of project activity"
+                    className="rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 w-full max-h-80 object-cover"
+                  />
+                </div>
+              )}
+            </div>
           ) : generatingProjectSummary ? (
             <p className="text-gray-500 dark:text-gray-400 italic">
               Generating project summary...

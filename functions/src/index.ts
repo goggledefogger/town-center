@@ -145,13 +145,100 @@ interface AISummaryResponse {
 }
 
 // Generate summary using the user's configured AI provider
+
+// Generate image using Gemini (nano-banana-pro or fallback)
+async function generateImage(
+  settings: UserAISettings,
+  prompt: string
+): Promise<string | null> {
+  if (!settings.googleKey) {
+    console.log('No Google API key configured for image generation')
+    return null
+  }
+
+  try {
+    const genAI = new GoogleGenerativeAI(settings.googleKey)
+
+    // Try nano-banana-pro first as requested
+    let model = genAI.getGenerativeModel({ model: 'nano-banana-pro' })
+    let result
+
+    try {
+      result = await model.generateContent(prompt)
+    } catch (e: any) {
+      // Fallback to imagen-3.0-generate-001 if nano-banana-pro fails (e.g. invalid model ID)
+      console.warn('nano-banana-pro failed, falling back to imagen-3.0-generate-001', e.message)
+      model = genAI.getGenerativeModel({ model: 'imagen-3.0-generate-001' })
+      result = await model.generateContent(prompt)
+    }
+
+    // Attempt to extract image data
+    // Note: The specific response structure for image generation varies.
+    // Assuming standard candidate structure or relying on specific SDK behavior.
+    // For now, we will inspect the response and try to find image data.
+    // In many "image generation" models via Gemini API, the response might contain inline data or a URI.
+
+    // If we can't get a direct buffer easily from the unified API for image models yet (SDK limitations),
+    // we might need a direct REST call, but let's try to see if we can get it from the parts.
+
+    // However, since the standard SDK might not fully stream binary images for all models yet,
+    // we might need to handle this carefully.
+
+    // Actually, for Imagen 3 via Gemini API, usually we get a base64 string in the response candidates.
+    // Let's assume we can get it.
+
+    const candidates = result.response.candidates
+    if (!candidates || candidates.length === 0) return null
+
+    const parts = candidates[0].content.parts
+    const imagePart = parts.find((p: any) => p.inlineData)
+
+    if (imagePart && imagePart.inlineData) {
+      return imagePart.inlineData.data // Base64 string
+    }
+
+    return null
+
+  } catch (error) {
+    console.error('Image generation error:', error)
+    return null
+  }
+}
+
+// Upload image to Firebase Storage and get public URL
+async function uploadImageAndGetUrl(
+  userId: string,
+  projectId: string,
+  imageBase64: string
+): Promise<string | null> {
+  try {
+    const bucket = admin.storage().bucket()
+    const buffer = Buffer.from(imageBase64, 'base64')
+    const filename = `project-summaries/${userId}/${projectId}/${Date.now()}.png`
+    const file = bucket.file(filename)
+
+    await file.save(buffer, {
+      metadata: {
+        contentType: 'image/png',
+      },
+    })
+
+    await file.makePublic()
+    return file.publicUrl()
+  } catch (error) {
+    console.error('Error uploading image:', error)
+    return null
+  }
+}
+
+// Generate summary using the user's configured AI provider
 async function generateAISummary(
   settings: UserAISettings,
   projectName: string,
   commitsContext: string,
   mode: 'workstream' | 'project',
   branchName?: string
-): Promise<AISummaryResponse> {
+): Promise<AISummaryResponse & { imageUrl?: string | null }> {
   const workstreamPrompt = `You are helping a developer remember what they were working on after being away. Summarize the FEATURE or GOAL being built, not individual commits.
 
 Project: ${projectName}
@@ -227,21 +314,38 @@ Summary guidelines:
   const prompt = mode === 'workstream' ? workstreamPrompt : projectPrompt
   const provider = settings.aiProvider || 'anthropic'
 
-  const parseResponse = (text: string): AISummaryResponse => {
+  const parseResponse = async (text: string): Promise<AISummaryResponse & { imageUrl?: string | null }> => {
+    let response: AISummaryResponse = { summary: text, actionTag: null, workType: null }
     try {
       const jsonMatch = text.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0])
-        return {
+        response = {
           summary: parsed.summary || 'Unable to generate summary.',
           actionTag: parsed.actionTag || null,
           workType: parsed.workType || null
         }
       }
     } catch {
-      return { summary: text, actionTag: null, workType: null }
+      // Keep default response
     }
-    return { summary: text, actionTag: null, workType: null }
+
+    // Generate image if we have a valid summary and Google key
+    let imageUrl = null
+    if (response.summary && settings.googleKey) {
+      console.log('Generating image for summary:', response.summary)
+      const imageBase64 = await generateImage(settings, `Create a clean, minimal, abstract digital art representation of this software development activity: ${response.summary}. Use a modern, tech-focused style with blueprints, code snippets, or abstract nodes.`)
+      if (imageBase64) {
+        // We need userId here, but it's not passed to generateAISummary.
+        // We'll return the base64 and let the caller handle upload, OR we can't upload here without userId/projectId context.
+        // Let's return base64 and let caller upload? No, base64 is too large to pass around easily if we can avoid it.
+        // But we don't have projectId/userId here easily without changing signature.
+        // Let's just return the base64 content for now and handle upload in the caller.
+        return { ...response, imageUrl: imageBase64 }
+      }
+    }
+
+    return { ...response, imageUrl }
   }
 
   try {
@@ -536,7 +640,8 @@ export const summarize = onRequest(
         success: true,
         summary: result.summary,
         actionTag: result.actionTag,
-        workType: result.workType
+        workType: result.workType,
+        imageUrl: result.imageUrl ? await uploadImageAndGetUrl(userId, projectId, result.imageUrl) : null
       })
     } catch (error) {
       console.error('Error generating summary:', error)

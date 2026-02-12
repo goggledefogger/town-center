@@ -26,6 +26,7 @@ export type Project = {
   createdAt: Timestamp
   lastActivityAt: Timestamp
   aiSummary?: string
+  aiImageUrl?: string
   summaryGeneratedAt?: Timestamp
 }
 
