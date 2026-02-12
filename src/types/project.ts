@@ -20,6 +20,7 @@ export type ActionTag =
 export type Project = {
   id: string
   name: string
+  fullName?: string
   description?: string
   category?: ProjectCategory
   createdAt: Timestamp

@@ -12,6 +12,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
+import { formatRelativeTime } from '../../lib/utils'
 import { useAuth } from '../../contexts/AuthContext'
 import { Project, Workstream, ActionTag, WorkType } from '../../types'
 import { Spinner } from '../../components/Spinner'
@@ -192,87 +193,12 @@ export function ProjectsPage() {
     setGeneratingSummary(`${projectId}-${workstreamId}`)
 
     try {
-      // Get user's active (non-revoked) token
-      const tokensRef = collection(db, 'users', user.uid, 'agentTokens')
-      const tokensSnap = await getDocs(query(tokensRef))
-
-      // Find first non-revoked token
-      const activeToken = tokensSnap.docs.find(doc => !doc.data().isRevoked)
-
-      if (!activeToken) {
-        alert('No active tokens found. Please create a new agent token in the Tokens page.')
-        return
-      }
-
-      const tokenData = activeToken.data()
-      const token = tokenData.token
-
-      // Call summarize endpoint
-      const response = await fetch('https://us-central1-town-center-agent.cloudfunctions.net/summarize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Agent-Token': token
-        },
-        body: JSON.stringify({ projectId, workstreamId })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        alert(`Error: ${data.error || 'Unknown error'}`)
-        return
-      }
-
-      if (data.success && data.summary) {
-        // Cache the summary, action tag, and work type in the workstream document
-        const wsRef = doc(db, 'users', user.uid, 'projects', projectId, 'workstreams', workstreamId)
-        await updateDoc(wsRef, {
-          aiSummary: data.summary,
-          actionTag: data.actionTag || null,
-          workType: data.workType || null,
-          summaryGeneratedAt: serverTimestamp()
-        })
-
-        // Update local state immediately (onSnapshot doesn't trigger for workstream changes)
-        setProjects(prev => prev.map(project => {
-          if (project.id !== projectId) return project
-          return {
-            ...project,
-            workstreams: project.workstreams.map(ws => {
-              if (ws.id !== workstreamId) return ws
-              return {
-                ...ws,
-                summary: data.summary,
-                actionTag: data.actionTag || undefined,
-                workType: data.workType || undefined,
-                summaryGeneratedAt: new Date()
-              }
-            })
-          }
-        }))
-      }
+      await generateSummaryForWorkstream(projectId, workstreamId)
     } catch (error) {
       console.error('Error generating summary:', error)
     } finally {
       setGeneratingSummary(null)
     }
-  }
-
-  const formatRelativeTime = (timestamp: any) => {
-    if (!timestamp) return ''
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
-
-    if (diffMins < 1) return 'just now'
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    if (diffDays < 7) return `${diffDays}d ago`
-    return date.toLocaleDateString()
   }
 
   const getStatusColor = (status: string) => {

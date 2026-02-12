@@ -56,11 +56,12 @@ town-center/
 ```
 users/{uid}/
 ├── projects/{pid}/
-│   ├── name, createdAt, lastActivityAt
+│   ├── name, createdAt, lastActivityAt, aiSummary, summaryGeneratedAt
 │   └── workstreams/{wid}/
-│       ├── name, status, lastActivityAt, aiSummary, actionTag
+│       ├── name, status, lastActivityAt, aiSummary, actionTag, workType
 │       └── updates/{uid}/
-│           └── summary, tool, model, priority, timestamp, isRead
+│           └── summary, tool, model, priority, timestamp, isRead,
+│               commitBody, filesChanged, commitUrl
 ├── agentTokens/{tid}/
 │   └── token, label, isRevoked, createdAt, lastUsedAt
 └── settings/
@@ -84,6 +85,10 @@ users/{uid}/
 - [x] Branch-level summaries with action indicators
 - [x] Auto-generate stale summaries on page load (first 3 projects)
 - [x] Bullet-point formatted AI summaries
+- [x] Feature-level AI summaries (replacing commit-level summaries)
+- [x] workType classification (feature/bugfix/refactor/infrastructure/docs/maintenance)
+- [x] Project-level AI summaries on detail page
+- [x] Enriched webhook data (commit bodies, file paths, commit URLs)
 
 ### In Progress
 - [ ] Action tag click-through actions
@@ -141,6 +146,10 @@ Create a GitHub App at https://github.com/settings/apps/new with:
 
 ## Recent Changes
 
+- **2026-02-11**: Feature-level AI summaries replacing commit-level summaries
+- **2026-02-11**: workType classification pills on branch names (feature/bugfix/refactor/infrastructure/docs/maintenance)
+- **2026-02-11**: Project-level AI summary on detail page
+- **2026-02-11**: Enriched webhook data from GitHub pushes (commit bodies, file paths, commit URLs)
 - **2026-02-04**: Simplified AI summaries to one short human-readable sentence
 - **2026-02-04**: Improved spacing/padding on workstream rows for readability
 - **2026-02-04**: Added GitHub App support for automatic webhook on all repos

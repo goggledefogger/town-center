@@ -12,6 +12,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore'
 import { db } from '../../lib/firebase'
+import { formatRelativeTime } from '../../lib/utils'
 import { useAuth } from '../../contexts/AuthContext'
 import { Project, Workstream, Update } from '../../types'
 import { Spinner } from '../../components/Spinner'
@@ -141,22 +142,6 @@ export function ProjectDetailPage() {
     }
   }
 
-  const formatRelativeTime = (timestamp: any) => {
-    if (!timestamp) return ''
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
-
-    if (diffMins < 1) return 'just now'
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    if (diffDays < 7) return `${diffDays}d ago`
-    return date.toLocaleDateString()
-  }
-
   const getStatusBadge = (status: string) => {
     const styles = {
       active: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
@@ -219,7 +204,7 @@ export function ProjectDetailPage() {
 
         {/* GitHub Link */}
         <a
-          href={`https://github.com/${project.name}`}
+          href={`https://github.com/${project.fullName || project.name}`}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:border-gray-400 dark:hover:border-gray-500 transition-colors"

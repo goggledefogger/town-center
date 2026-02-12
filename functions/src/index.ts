@@ -271,6 +271,7 @@ interface UpdateMetadata {
   commitBody?: string
   filesChanged?: string[]
   commitUrl?: string
+  repoFullName?: string
 }
 
 // Create an update for a user
@@ -292,14 +293,18 @@ async function createUpdate(
   let projectRef: admin.firestore.DocumentReference
 
   if (projectQuery.empty) {
-    projectRef = await projectsRef.add({
+    const projectData: Record<string, any> = {
       name: project,
       createdAt: now,
       lastActivityAt: now
-    })
+    }
+    if (metadata?.repoFullName) projectData.fullName = metadata.repoFullName
+    projectRef = await projectsRef.add(projectData)
   } else {
     projectRef = projectQuery.docs[0].ref
-    await projectRef.update({ lastActivityAt: now })
+    const updateData: Record<string, any> = { lastActivityAt: now }
+    if (metadata?.repoFullName) updateData.fullName = metadata.repoFullName
+    await projectRef.update(updateData)
   }
 
   const workstreamsRef = projectRef.collection('workstreams')
@@ -577,7 +582,7 @@ export const githubWebhook = onRequest(
         const priority = getPriorityFromCommit(commit.message)
         const updateId = await createUpdate(
           tokenResult.userId, project, branch, summary, 'github', 'git', priority,
-          { commitBody, filesChanged: filesChanged.length > 0 ? filesChanged : undefined, commitUrl: commit.url }
+          { commitBody, filesChanged: filesChanged.length > 0 ? filesChanged : undefined, commitUrl: commit.url, repoFullName: payload.repository.full_name }
         )
         updateIds.push(updateId)
       }

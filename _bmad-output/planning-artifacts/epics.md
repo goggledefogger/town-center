@@ -11,19 +11,19 @@ implementationStatus:
   epic1: complete
   epic2: partial  # Stories 2.1-2.3 done, 2.4 (onboarding wizard) pending
   epic3: complete # All stories done - projects, workstreams, updates feed with real-time sync
-  epic4: partial  # Pause toggle done, unread/priority badges done, dormancy pending
+  epic4: partial  # Pause toggle, priority badges, AI-generated action tags, AI summaries (branch-level + project-level), workType classification done. Dormancy reminders (4.5) pending.
   epic5: not-started
-lastImplementationUpdate: '2026-02-04'
+lastImplementationUpdate: '2026-02-11'
 integrations:
   primary: github-webhooks  # Single integration point - no per-tool hooks needed
   endpoints:
     - githubWebhook: receives push events, creates updates from commits
     - postUpdate: legacy/direct API for manual posts
-    - summarize: (planned) AI-generated summaries
+    - summarize: implemented - multi-provider AI summaries (Anthropic/OpenAI/Google)
 dataArchitecture:
   stored: activity updates, preferences, tokens (minimal)
   github: source of truth for commits/PRs/branches
-  ai-on-demand: summaries generated when viewing (cheap/fast model)
+  ai-on-demand: multi-provider summaries (Anthropic Claude Haiku, OpenAI GPT-4o-mini, Google Gemini Flash) with feature-level summaries using enriched commit context
 ---
 
 # town-center - Epic Breakdown
@@ -332,7 +332,7 @@ So that I can start tracking agent activity in under 2 minutes.
 
 ## Epic 3: Activity Feed & Browsing
 
-**Status: NOT STARTED**
+**Status: COMPLETE**
 
 User can browse all agent activity organized by project and workstream.
 
@@ -413,7 +413,7 @@ So that I don't have to refresh the page.
 
 ## Epic 4: Attention & Status Tracking
 
-**Status: NOT STARTED**
+**Status: PARTIAL** (Pause toggle, priority badges, AI-generated action tags, AI summaries at branch and project level, workType classification done. Story 4.5 dormancy reminders pending.)
 
 User knows exactly what needs their attention right now.
 
