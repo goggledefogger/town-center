@@ -93,6 +93,10 @@ users/{uid}/
 - [x] Merged/completed workstream detection via pull_request webhook
 - [x] Branch name normalization (dedup refs/heads/ prefix)
 - [x] Visual treatment for merged workstreams (dimmed, merged badge, sorted after active)
+- [x] Manual "Mark as Completed" button for legacy merged branches
+- [x] Cleanup tool (syncDeletedBranches) - checks GitHub and marks deleted branches as completed
+- [x] Deduplication function (dedupeWorkstreams) - removes duplicate workstream entries
+- [x] AI prompt prevents main/master/develop branches from showing merge-related action tags
 - [x] Unit tests (44 tests: branch normalization, webhook handler, sorting, staleness)
 
 ### In Progress
@@ -152,6 +156,11 @@ Create a GitHub App at https://github.com/settings/apps/new with:
 
 ## Recent Changes
 
+- **2026-02-12**: Visual treatment for completed/merged workstreams (dimmed, line-through, merged badge)
+- **2026-02-12**: Manual "Mark as Completed" button on workstream detail pages
+- **2026-02-12**: One-time cleanup tool (syncDeletedBranches) to mark legacy merged branches
+- **2026-02-12**: Deduplication function (dedupeWorkstreams) to remove duplicate entries
+- **2026-02-12**: AI prompt fix - main/master/develop branches never show "ready to merge"
 - **2026-02-11**: Merged/completed workstream display with PR webhook detection
 - **2026-02-11**: Branch name normalization to prevent duplicate workstream entries
 - **2026-02-11**: Unit test suite (44 tests via vitest)
