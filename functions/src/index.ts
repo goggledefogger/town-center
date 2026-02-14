@@ -74,6 +74,15 @@ interface GitHubPullRequestPayload {
   }
 }
 
+interface GitHubDeletePayload {
+  ref: string
+  ref_type: 'branch' | 'tag'
+  repository: {
+    name: string
+    full_name: string
+  }
+}
+
 // User AI settings
 interface UserAISettings {
   aiProvider?: AIProvider
@@ -734,12 +743,67 @@ export const githubWebhook = onRequest(
     }
 
     const githubEvent = req.headers['x-github-event'] as string
-    if (githubEvent !== 'push' && githubEvent !== 'pull_request') {
+    if (githubEvent !== 'push' && githubEvent !== 'pull_request' && githubEvent !== 'delete') {
       res.status(200).json({ message: `Event ${githubEvent} ignored` })
       return
     }
 
     try {
+      // Handle branch deletion events
+      if (githubEvent === 'delete') {
+        const payload = req.body as GitHubDeletePayload
+
+        // Only handle branch deletions, not tag deletions
+        if (payload.ref_type !== 'branch') {
+          res.status(200).json({ message: 'Delete event ignored (not a branch)' })
+          return
+        }
+
+        const branch = payload.ref
+        const project = payload.repository.name
+        const userId = tokenResult.userId
+
+        if (tokenResult.projectScope && tokenResult.projectScope !== project) {
+          res.status(200).json({ message: 'Project not in token scope, ignored' })
+          return
+        }
+
+        // Find the project
+        const projectsRef = db.collection('users').doc(userId).collection('projects')
+        const projectQuery = await projectsRef.where('name', '==', project).limit(1).get()
+
+        if (projectQuery.empty) {
+          res.status(200).json({ message: 'Project not found, ignored' })
+          return
+        }
+
+        const projectRef = projectQuery.docs[0].ref
+
+        // Find the workstream by branch name
+        const workstreamsRef = projectRef.collection('workstreams')
+        const workstreamQuery = await workstreamsRef.where('name', '==', branch).limit(1).get()
+
+        if (workstreamQuery.empty) {
+          res.status(200).json({ message: 'Workstream not found for deleted branch, ignored' })
+          return
+        }
+
+        const workstreamDoc = workstreamQuery.docs[0]
+        const workstreamData = workstreamDoc.data()
+
+        // Only mark as completed if not already completed
+        if (workstreamData.status !== 'completed') {
+          await workstreamDoc.ref.update({
+            status: 'completed',
+            mergedAt: admin.firestore.FieldValue.serverTimestamp(),
+            actionTag: null
+          })
+        }
+
+        res.status(200).json({ success: true, message: `Marked deleted branch ${branch} as completed` })
+        return
+      }
+
       if (githubEvent === 'pull_request') {
         const payload = req.body as GitHubPullRequestPayload
         const project = payload.repository.name

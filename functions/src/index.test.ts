@@ -203,6 +203,92 @@ describe('pull_request webhook handler logic', () => {
   })
 })
 
+describe('delete event webhook handler logic', () => {
+  interface DeletePayload {
+    ref: string
+    ref_type: 'branch' | 'tag'
+    repository: { name: string; full_name: string }
+  }
+
+  interface DeleteHandlerResult {
+    action: 'ignore' | 'mark_completed' | 'already_completed' | 'project_not_found' | 'workstream_not_found'
+    message: string
+    updates?: Record<string, any>
+  }
+
+  function handleDelete(
+    payload: DeletePayload,
+    projectExists: boolean,
+    workstreamExists: boolean,
+    currentStatus: string = 'active'
+  ): DeleteHandlerResult {
+    if (payload.ref_type !== 'branch') {
+      return { action: 'ignore', message: 'Delete event ignored (not a branch)' }
+    }
+
+    if (!projectExists) {
+      return { action: 'project_not_found', message: 'Project not found, ignored' }
+    }
+
+    if (!workstreamExists) {
+      return { action: 'workstream_not_found', message: 'Workstream not found for deleted branch, ignored' }
+    }
+
+    if (currentStatus === 'completed') {
+      return { action: 'already_completed', message: `Branch ${payload.ref} already completed` }
+    }
+
+    return {
+      action: 'mark_completed',
+      message: `Marked deleted branch ${payload.ref} as completed`,
+      updates: {
+        status: 'completed',
+        actionTag: null
+      }
+    }
+  }
+
+  const baseDeletePayload: DeletePayload = {
+    ref: 'feat/old-feature',
+    ref_type: 'branch',
+    repository: { name: 'my-repo', full_name: 'user/my-repo' }
+  }
+
+  it('marks workstream as completed on branch deletion', () => {
+    const result = handleDelete(baseDeletePayload, true, true)
+    expect(result.action).toBe('mark_completed')
+    expect(result.updates?.status).toBe('completed')
+    expect(result.updates?.actionTag).toBeNull()
+  })
+
+  it('ignores tag deletions', () => {
+    const payload = { ...baseDeletePayload, ref_type: 'tag' as const }
+    const result = handleDelete(payload, true, true)
+    expect(result.action).toBe('ignore')
+  })
+
+  it('handles gracefully when project not found', () => {
+    const result = handleDelete(baseDeletePayload, false, false)
+    expect(result.action).toBe('project_not_found')
+  })
+
+  it('handles gracefully when workstream not found', () => {
+    const result = handleDelete(baseDeletePayload, true, false)
+    expect(result.action).toBe('workstream_not_found')
+  })
+
+  it('skips update if workstream is already completed', () => {
+    const result = handleDelete(baseDeletePayload, true, true, 'completed')
+    expect(result.action).toBe('already_completed')
+    expect(result.updates).toBeUndefined()
+  })
+
+  it('includes branch name in success message', () => {
+    const result = handleDelete(baseDeletePayload, true, true)
+    expect(result.message).toContain('feat/old-feature')
+  })
+})
+
 describe('push webhook branch extraction', () => {
   // The push handler extracts branch from payload.ref (line 633)
   it('extracts branch name from push ref', () => {
