@@ -89,12 +89,6 @@ export function SettingsPage() {
     setShowKeys(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
-  const maskKey = (key: string | undefined) => {
-    if (!key) return ''
-    if (key.length <= 8) return '••••••••'
-    return key.slice(0, 4) + '••••••••' + key.slice(-4)
-  }
-
   if (loading) {
     return (
       <div className="flex justify-center py-12">
